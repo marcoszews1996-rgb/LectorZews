@@ -1,0 +1,6 @@
+{
+  "name": "LectorZews",
+  "description": "Disfruta de tus mejores libros en PDF relatados en segundo plano; relájate y disfruta de la lectura.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

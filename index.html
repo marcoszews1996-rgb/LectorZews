@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>LectorZews</title>
+    <meta name="theme-color" content="#0c0a09" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="LectorZews" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="alternate icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="description" content="Disfruta de tus mejores libros en PDF relatados en segundo plano; relájate y disfruta de la lectura." />
+    <meta property="og:title" content="LectorZews" />
+    <meta property="og:description" content="Disfruta de tus mejores libros en PDF relatados en segundo plano; relájate y disfruta de la lectura." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <!-- Google AdMob / AdSense Web Script with TagError Protection -->
+    <script>
+      window.addEventListener('error', function(event) {
+        if (event && (
+          (event.message && (event.message.indexOf('adsbygoogle') !== -1 || event.message.indexOf('TagError') !== -1)) ||
+          (event.filename && event.filename.indexOf('adsbygoogle') !== -1)
+        )) {
+          event.preventDefault && event.preventDefault();
+          event.stopPropagation && event.stopPropagation();
+          return true;
+        }
+      }, true);
+    </script>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-app-pub-5450514125268915" crossorigin="anonymous"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;800&family=Playfair+Display:ital,wght@0,600;0,800;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  </head>
+  <body class="overflow-x-hidden antialiased select-none">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

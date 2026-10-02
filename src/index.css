@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+@layer utilities {
+  .font-title {
+    font-family: 'Cinzel', 'Playfair Display', Georgia, serif;
+  }
+  .font-serif-elegant {
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+  .font-sans-clean {
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  }
+}
+
+/* Aceleración por GPU y optimización táctil para Android WebView */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+#document-reader-view,
+#book-page-canvas {
+  transform: translateZ(0);
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Custom minimal scrollbar for smooth reading without clutter */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(150, 150, 150, 0.2);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(150, 150, 150, 0.4);
+}
