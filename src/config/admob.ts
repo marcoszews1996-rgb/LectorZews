@@ -45,4 +45,7 @@ await AdMob.prepareInterstitial({
 
 // 2. Mostrar el anuncio a pantalla completa (en la 3ª apertura de PDF)
 await AdMob.showInterstitial();`,
+
+  // Verificación oficial para desarrolladores Google AdMob (app-ads.txt)
+  appAdsTxt: 'google.com, pub-5450514125268915, DIRECT, f08c47fec0942fa0',
 } as const;

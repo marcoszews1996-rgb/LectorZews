@@ -39,6 +39,7 @@ export const AndroidExportModal: React.FC<AndroidExportModalProps> = ({
   const [copiedAdUnitId, setCopiedAdUnitId] = useState(false);
   const [copiedInterstitialId, setCopiedInterstitialId] = useState(false);
   const [copiedInterstitialCode, setCopiedInterstitialCode] = useState(false);
+  const [copiedAppAdsTxt, setCopiedAppAdsTxt] = useState(false);
 
   if (!isOpen) return null;
 
@@ -637,6 +638,48 @@ npx cap open android`;
                 <pre className="p-2 rounded-lg bg-neutral-950 border border-neutral-800/80 font-mono text-[10px] text-emerald-400 overflow-x-auto select-all">
                   {ADMOB_CONFIG.capacitorInterstitialSnippet}
                 </pre>
+              </div>
+
+              {/* Archivo app-ads.txt para verificación oficial AdMob */}
+              <div className="p-3 rounded-xl bg-neutral-900 border border-neutral-800 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] font-semibold text-neutral-200">
+                      Archivo de Verificación: <code className="text-amber-400">/app-ads.txt</code>
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      Activo en servidor
+                    </span>
+                  </div>
+                  <button
+                    id="btn-copy-app-ads-txt"
+                    onClick={() => {
+                      sounds.playClick(750);
+                      navigator.clipboard.writeText(ADMOB_CONFIG.appAdsTxt);
+                      setCopiedAppAdsTxt(true);
+                      setTimeout(() => setCopiedAppAdsTxt(false), 2500);
+                    }}
+                    className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-[10px] font-medium flex items-center gap-1 transition active:scale-95"
+                  >
+                    {copiedAppAdsTxt ? (
+                      <>
+                        <Check className="w-3 h-3 text-emerald-400" />
+                        <span className="text-emerald-400">¡Copiado!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3 h-3" />
+                        <span>Copiar app-ads.txt</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <pre className="p-2 rounded-lg bg-neutral-950 border border-neutral-800/80 font-mono text-[10px] text-sky-300 overflow-x-auto select-all">
+                  {ADMOB_CONFIG.appAdsTxt}
+                </pre>
+                <p className="text-[10px] text-neutral-400">
+                  Google AdMob verifica este archivo en la URL de tu sitio web de desarrollador en Google Play Store para validar la propiedad de los anuncios.
+                </p>
               </div>
             </div>
           </div>
