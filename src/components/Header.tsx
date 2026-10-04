@@ -44,6 +44,10 @@ interface HeaderProps {
   onToggleImmersiveMode?: () => void;
   onOpenBackgroundAudio?: () => void;
   isPlaying?: boolean;
+  isInstalled?: boolean;
+  onOpenInstallModal?: () => void;
+  onToggleFullscreen?: () => void;
+  isFullscreen?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -70,6 +74,10 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleImmersiveMode,
   onOpenBackgroundAudio,
   isPlaying = false,
+  isInstalled = false,
+  onOpenInstallModal,
+  onToggleFullscreen,
+  isFullscreen = false,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -300,6 +308,52 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         )}
 
+        {/* Instalar App / Modo Nativo Trigger */}
+        {onOpenInstallModal && (
+          <button
+            id="btn-header-install-app"
+            onClick={() => {
+              sounds.playClick(750);
+              onOpenInstallModal();
+            }}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl border text-xs font-semibold transition-all active:scale-95 shadow-sm ${
+              isInstalled
+                ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-300'
+                : 'bg-gradient-to-r from-amber-500/25 to-amber-600/20 hover:from-amber-500/35 hover:to-amber-600/30 border-amber-500/60 text-amber-200'
+            }`}
+            title={
+              isInstalled
+                ? 'LectorZews en Modo App Nativo'
+                : 'Instalar LectorZews como App para quitar las barras del navegador'
+            }
+          >
+            <Smartphone className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span className="hidden sm:inline">
+              {isInstalled ? 'Modo App' : 'Instalar App'}
+            </span>
+          </button>
+        )}
+
+        {/* Pantalla Completa Web Trigger */}
+        {onToggleFullscreen && (
+          <button
+            id="btn-header-toggle-fullscreen"
+            onClick={() => {
+              sounds.playClick(650);
+              onToggleFullscreen();
+            }}
+            className={`hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl border text-xs font-medium transition-all active:scale-95 ${
+              isFullscreen
+                ? 'bg-amber-500/20 border-amber-500/50 text-amber-200'
+                : 'bg-neutral-900/80 hover:bg-neutral-800 border-neutral-800 text-neutral-300'
+            }`}
+            title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa sin controles de navegador'}
+          >
+            <Maximize2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span>{isFullscreen ? 'Salir' : 'Pantalla Completa'}</span>
+          </button>
+        )}
+
         {/* Android Export / Install Trigger */}
         {onOpenAndroidExport && (
           <button
@@ -312,7 +366,7 @@ export const Header: React.FC<HeaderProps> = ({
             title="Exportar APK / AAB para Android"
           >
             <Smartphone className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span className="hidden sm:inline">Android</span>
+            <span className="hidden sm:inline">Android APK</span>
           </button>
         )}
 

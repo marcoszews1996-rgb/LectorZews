@@ -12,9 +12,24 @@
   }
 }
 
-/* Aceleración por GPU y optimización táctil para Android WebView */
+/* Aceleración por GPU y optimización táctil para Android WebView & Modo App Nativa */
 * {
   -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+html, body {
+  overscroll-behavior-y: none;
+  overscroll-behavior-x: none;
+  user-select: none;
+  -webkit-user-select: none;
+  background-color: #0c0a09;
+}
+
+/* Soporte de notch y áreas seguras de pantalla en móviles modernos */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
 }
 
 #document-reader-view,

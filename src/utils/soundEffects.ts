@@ -228,6 +228,10 @@ class SoundSystem {
     } catch {}
   }
 
+  public playSuccess() {
+    this.playDocumentLoaded();
+  }
+
   // Soothing nocturnal lullaby chime when setting sleep timer
   public playSleepTimerSet() {
     if (!this.enabled) return;

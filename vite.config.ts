@@ -32,9 +32,11 @@ export default defineConfig(() => {
           theme_color: '#0c0a09',
           background_color: '#0c0a09',
           display: 'standalone',
+          display_override: ['standalone', 'window-controls-overlay', 'minimal-ui'],
           orientation: 'any',
           start_url: '/',
           scope: '/',
+          prefer_related_applications: false,
           categories: ['books', 'education', 'utilities'],
           icons: [
             {
