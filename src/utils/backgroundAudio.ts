@@ -6,8 +6,8 @@ class BackgroundAudioService {
   constructor() {
     if (typeof window !== 'undefined') {
       this.audio = new Audio();
-      // silencio de 0.5 seg que hace que Android crea que es música
-      this.audio.src = "https://cdn.pixabay.com/audio/2022/03/24/audio_0d3c9c9a56.mp3";
+      // Silencio de audio codificado en Base64 para segundo plano sin dependencias de red externa
+      this.audio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==';
       this.audio.loop = true;
       this.audio.volume = 0.01;
       this.audio.preload = "auto";

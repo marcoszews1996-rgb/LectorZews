@@ -286,6 +286,22 @@ export function computeSmartRhythm(
   };
 }
 
+declare global {
+  interface Window {
+    AndroidTTS?: {
+      isAvailable: () => boolean;
+      speak: (text: string, rate: number, pitch: number, langCode: string, utteranceId: string) => void;
+      stop: () => void;
+      isSpeaking: () => boolean;
+      getVoicesJson: () => string;
+    };
+    __onAndroidTTSStart?: (utteranceId: string) => void;
+    __onAndroidTTSDone?: (utteranceId: string) => void;
+    __onAndroidTTSError?: (utteranceId: string, error: string) => void;
+    __onAndroidTTSReady?: () => void;
+  }
+}
+
 export class SpeechEngine {
   private synth: SpeechSynthesis | null = null;
   private voices: SpeechSynthesisVoice[] = [];
@@ -296,37 +312,108 @@ export class SpeechEngine {
   private watchdogTimeout: number | null = null;
   private dispatchTimeout: number | null = null;
   private activeUtteranceRetainer: Set<SpeechSynthesisUtterance> = new Set();
+  private androidCallbacks: Map<
+    string,
+    { onStart?: () => void; onEnd?: () => void; onError?: (err: unknown) => void }
+  > = new Map();
+  private currentAndroidUttId: string | null = null;
 
   constructor() {
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      this.synth = window.speechSynthesis;
+    if (typeof window !== 'undefined') {
+      if ('speechSynthesis' in window) {
+        this.synth = window.speechSynthesis;
+      }
       this.initVoices();
+      this.initAndroidBridge();
     }
   }
 
-  private initVoices() {
-    if (!this.synth) return;
+  private initAndroidBridge() {
+    if (typeof window === 'undefined') return;
 
+    window.__onAndroidTTSStart = (id: string) => {
+      this.isSpeakingActive = true;
+      this.isPausedState = false;
+      const cb = this.androidCallbacks.get(id);
+      cb?.onStart?.();
+    };
+
+    window.__onAndroidTTSDone = (id: string) => {
+      this.isSpeakingActive = false;
+      this.isPausedState = false;
+      const cb = this.androidCallbacks.get(id);
+      this.androidCallbacks.delete(id);
+      if (this.currentAndroidUttId === id) {
+        this.currentAndroidUttId = null;
+      }
+      cb?.onEnd?.();
+    };
+
+    window.__onAndroidTTSError = (id: string, error: string) => {
+      this.isSpeakingActive = false;
+      this.isPausedState = false;
+      const cb = this.androidCallbacks.get(id);
+      this.androidCallbacks.delete(id);
+      if (this.currentAndroidUttId === id) {
+        this.currentAndroidUttId = null;
+      }
+      cb?.onError?.(new Error(error || 'Error en síntesis nativa'));
+    };
+
+    window.__onAndroidTTSReady = () => {
+      this.initVoices();
+    };
+  }
+
+  private initVoices() {
     const fetchVoices = () => {
-      try {
-        const list = this.synth?.getVoices();
-        if (list && list.length > 0) {
-          this.voices = list;
-        }
-      } catch {}
+      let voiceList: SpeechSynthesisVoice[] = [];
+      if (this.synth) {
+        try {
+          const list = this.synth.getVoices();
+          if (list && list.length > 0) {
+            voiceList = list;
+          }
+        } catch {}
+      }
+
+      // Check if native AndroidTTS provides installed voices
+      if (typeof window !== 'undefined' && window.AndroidTTS) {
+        try {
+          if (window.AndroidTTS.isAvailable()) {
+            const jsonStr = window.AndroidTTS.getVoicesJson();
+            const nativeVoices = JSON.parse(jsonStr || '[]');
+            if (Array.isArray(nativeVoices) && nativeVoices.length > 0) {
+              const mapped = nativeVoices.map((v: { name: string; lang: string }) => ({
+                default: false,
+                lang: v.lang || 'es-ES',
+                localService: true,
+                name: v.name || 'Voz Android Nativa',
+                voiceURI: v.name,
+              })) as unknown as SpeechSynthesisVoice[];
+              voiceList = [...mapped, ...voiceList];
+            }
+          }
+        } catch {}
+      }
+
+      if (voiceList.length > 0) {
+        this.voices = voiceList;
+      }
     };
 
     fetchVoices();
 
-    // Attach listeners on both property and addEventListener
-    if (typeof this.synth.onvoiceschanged !== 'undefined') {
-      this.synth.onvoiceschanged = fetchVoices;
+    if (this.synth) {
+      if (typeof this.synth.onvoiceschanged !== 'undefined') {
+        this.synth.onvoiceschanged = fetchVoices;
+      }
+      try {
+        this.synth.addEventListener?.('voiceschanged', fetchVoices);
+      } catch {}
     }
-    try {
-      this.synth.addEventListener?.('voiceschanged', fetchVoices);
-    } catch {}
 
-    // Polling retry for initial Chromium delay
+    // Polling retry for initial delay
     if (typeof window !== 'undefined') {
       window.setTimeout(fetchVoices, 100);
       window.setTimeout(fetchVoices, 500);
@@ -585,6 +672,13 @@ export class SpeechEngine {
 
   public cancelCurrentSpeech() {
     this.clearTimers();
+    if (typeof window !== 'undefined' && window.AndroidTTS && window.AndroidTTS.isAvailable()) {
+      try {
+        window.AndroidTTS.stop();
+      } catch {}
+      this.androidCallbacks.clear();
+      this.currentAndroidUttId = null;
+    }
     if (this.synth) {
       try {
         this.synth.cancel();
@@ -637,8 +731,13 @@ export class SpeechEngine {
       onError = onErrorArg || (() => {});
     }
 
-    if (!this.synth) {
-      onError(new Error('El sintetizador de voz no está disponible en este navegador.'));
+    const hasAndroidTTS =
+      typeof window !== 'undefined' &&
+      !!window.AndroidTTS &&
+      window.AndroidTTS.isAvailable();
+
+    if (!hasAndroidTTS && !this.synth) {
+      onError(new Error('El sintetizador de voz no está disponible en este dispositivo.'));
       return;
     }
 
@@ -691,6 +790,30 @@ export class SpeechEngine {
       finalRate = rhythmResult.rate;
       finalPitch = rhythmResult.pitch;
       textToSpeak = rhythmResult.processedText;
+    }
+
+    // Prioridad 1: Si estamos ejecutando en la App Nativa de Android, usamos el motor nativo TextToSpeech
+    if (hasAndroidTTS && window.AndroidTTS) {
+      const uttId = 'utt_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+      this.androidCallbacks.set(uttId, { onStart, onEnd, onError });
+      this.currentAndroidUttId = uttId;
+      this.isSpeakingActive = true;
+      this.isPausedState = false;
+
+      const langFull = this.getFullLangCode(lang);
+      try {
+        window.AndroidTTS.speak(textToSpeak, finalRate, finalPitch, langFull, uttId);
+      } catch (e) {
+        this.androidCallbacks.delete(uttId);
+        onError(e);
+      }
+      return;
+    }
+
+    // Prioridad 2: Web Speech API para navegadores estándar
+    if (!this.synth) {
+      onError(new Error('Sintetizador web no disponible'));
+      return;
     }
 
     const utterance = new SpeechSynthesisUtterance(textToSpeak);
@@ -801,6 +924,15 @@ export class SpeechEngine {
   }
 
   public pause() {
+    if (typeof window !== 'undefined' && window.AndroidTTS && window.AndroidTTS.isAvailable()) {
+      try {
+        window.AndroidTTS.stop();
+      } catch {}
+      this.isPausedState = true;
+      this.isSpeakingActive = false;
+      this.clearTimers();
+      return;
+    }
     if (this.synth && this.synth.speaking) {
       try {
         this.synth.pause();
@@ -811,6 +943,10 @@ export class SpeechEngine {
   }
 
   public resume() {
+    if (typeof window !== 'undefined' && window.AndroidTTS && window.AndroidTTS.isAvailable()) {
+      this.isPausedState = false;
+      return;
+    }
     if (this.synth && (this.synth.paused || this.isPausedState)) {
       try {
         this.synth.resume();
@@ -825,11 +961,16 @@ export class SpeechEngine {
   }
 
   public isSpeaking(): boolean {
+    if (typeof window !== 'undefined' && window.AndroidTTS && window.AndroidTTS.isAvailable()) {
+      try {
+        return window.AndroidTTS.isSpeaking() || (this.isSpeakingActive && !this.isPausedState);
+      } catch {}
+    }
     return !!(this.synth && this.synth.speaking && !this.isPausedState);
   }
 
   public isPaused(): boolean {
-    return !!(this.synth && (this.synth.paused || this.isPausedState));
+    return this.isPausedState;
   }
 }
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Smartphone, Download, Maximize2, X, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Smartphone, Maximize2, X, Sparkles, CheckCircle2 } from 'lucide-react';
 import { sounds } from '../utils/soundEffects';
 
 interface InstallAppBannerProps {
@@ -27,8 +27,14 @@ export const InstallAppBanner: React.FC<InstallAppBannerProps> = ({
     }
   });
 
-  // If already installed as PWA or dismissed for this session, don't show the banner
-  if (isInstalled || isDismissed) {
+  // If running inside native Android app, or already installed as PWA or dismissed, don't show the banner
+  const isNativeApp =
+    typeof window !== 'undefined' &&
+    ((window as unknown as { AndroidTTS?: unknown }).AndroidTTS !== undefined ||
+      navigator.userAgent.includes('LectorZewsNative') ||
+      window.matchMedia('(display-mode: standalone)').matches);
+
+  if (isNativeApp || isInstalled || isDismissed) {
     return null;
   }
 
@@ -78,8 +84,8 @@ export const InstallAppBanner: React.FC<InstallAppBannerProps> = ({
               }}
               className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-neutral-950 font-bold text-xs shadow-md transition active:scale-95 flex items-center gap-1.5"
             >
-              <Download className="w-3.5 h-3.5 text-neutral-950" />
-              <span>Instalar App</span>
+              <Smartphone className="w-3.5 h-3.5 text-neutral-950" />
+              <span>Instalar WebApp</span>
             </button>
           )}
 

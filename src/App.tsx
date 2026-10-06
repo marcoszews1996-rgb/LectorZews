@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Maximize2, Minimize2, Play, Pause } from 'lucide-react';
-import libraryPuppetBg from './assets/images/library_puppet_mic_1790702324668.jpg';
+import libraryPuppetBg from './assets/images/library_story_doll_1791287871877.jpg';
 import {
   Bookmark,
   FavoriteItem,
@@ -417,6 +417,7 @@ export default function App() {
           console.warn('Speech error:', err);
           setIsPlaying(false);
           backgroundAudioService.pauseBackgroundPlayback();
+          showToast('Aviso: Asegúrate de que el volumen de audio multimedia esté activo.');
         },
       });
     },
@@ -513,8 +514,8 @@ export default function App() {
 
   const handlePlayPause = () => {
     if (!document) {
-      // Pick first sample book if no doc loaded
-      handleSelectSampleBook('quijote');
+      // Pick first sample book ("El Quijote") and start reading immediately!
+      handleSelectSampleBook('quijote', true);
       return;
     }
 
@@ -787,7 +788,7 @@ export default function App() {
   };
 
   // Load Sample Book
-  const handleSelectSampleBook = (sampleId: string) => {
+  const handleSelectSampleBook = (sampleId: string, autoPlay: boolean = false) => {
     const sample = SAMPLE_BOOKS.find((b) => b.id === sampleId);
     if (sample) {
       triggerPdfOpenWithAdCheck(sample.title, () => {
@@ -808,6 +809,12 @@ export default function App() {
         );
         const langLabel = langInfo ? ` • ${langInfo.flag} ${langInfo.name}` : '';
         showToast(`Cargado "${sample.title}"${langLabel}`);
+
+        if (autoPlay) {
+          setTimeout(() => {
+            speakSentence(0, 0, speed, voicePreset, false, smartRhythm, bookLang);
+          }, 100);
+        }
       });
     }
   };
@@ -988,14 +995,14 @@ export default function App() {
         effectiveIsDark ? 'text-neutral-100' : 'text-neutral-900'
       }`}
     >
-      {/* Nostalgic Antique Giant Library with Center Microphone & Reading Cloth Puppet Background */}
+      {/* Nostalgic Giant Library with Center Microphone & Reading Cloth Puppet Background */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
         <img
           src={libraryPuppetBg}
-          alt="Biblioteca gigante con micrófono en medio y muñeco de tela leyendo con micrófono"
+          alt="Biblioteca gigante con un micrófono en medio y un muñeco de tela leyendo un libro con ese micrófono"
           referrerPolicy="no-referrer"
           className={`w-full h-full object-cover object-center transform scale-105 transition-all duration-700 ${
-            effectiveIsDark ? 'brightness-[0.42] contrast-[1.08]' : 'brightness-[0.68] contrast-[1.02]'
+            effectiveIsDark ? 'brightness-[0.50] contrast-[1.06]' : 'brightness-[0.75] contrast-[1.02]'
           }`}
           loading="eager"
         />
@@ -1003,11 +1010,11 @@ export default function App() {
         <div
           className={`absolute inset-0 transition-colors duration-500 ${
             effectiveIsDark
-              ? 'bg-neutral-950/75 mix-blend-multiply'
-              : 'bg-amber-950/20 mix-blend-soft-light'
+              ? 'bg-neutral-950/65 mix-blend-multiply'
+              : 'bg-amber-950/15 mix-blend-soft-light'
           }`}
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-neutral-950 via-transparent to-neutral-950/80" />
+        <div className="absolute inset-0 bg-gradient-to-t from-neutral-950/90 via-transparent to-neutral-950/75" />
       </div>
 
       {/* Floating PWA Install & Native App Mode Banner (Dismissible, only shown when running in browser) */}

@@ -354,7 +354,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         )}
 
-        {/* Android Export / Install Trigger */}
+        {/* Android Export / Guía Trigger */}
         {onOpenAndroidExport && (
           <button
             id="btn-header-android-export"
@@ -366,7 +366,7 @@ export const Header: React.FC<HeaderProps> = ({
             title="Exportar APK / AAB para Android"
           >
             <Smartphone className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span className="hidden sm:inline">Android APK</span>
+            <span className="hidden sm:inline">Guía Android</span>
           </button>
         )}
 

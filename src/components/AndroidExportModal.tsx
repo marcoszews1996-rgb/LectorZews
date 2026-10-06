@@ -165,6 +165,41 @@ npx cap open android`;
 
         {/* Modal Body */}
         <div className="mt-5 space-y-5">
+          {/* Card 0: Android Studio Project Source Code */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-amber-950/40 via-neutral-900 to-neutral-900 border-2 border-amber-500/40 shadow-xl relative overflow-hidden">
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-amber-500 text-neutral-950 font-bold text-xs flex items-center justify-center font-mono">
+                  ★
+                </span>
+                <h3 className="text-base font-bold text-amber-300">
+                  Código Fuente Nativo para Android Studio
+                </h3>
+              </div>
+              <span className="px-2 py-0.5 text-[10px] rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40 whitespace-nowrap">
+                Proyecto Gradle
+              </span>
+            </div>
+
+            <p className="text-xs text-neutral-300 mb-3 leading-relaxed">
+              Descarga el proyecto Gradle completo para compilar en Android Studio, personalizar firmas para Google Play Store y depurar:
+            </p>
+
+            {/* Download Project Zip Button */}
+            <div className="flex items-center mb-3">
+              <a
+                id="btn-export-download-zip"
+                href="/lectorzews-android-project.zip"
+                download="lectorzews-android-project.zip"
+                onClick={() => sounds.playClick(600)}
+                className="w-full sm:w-auto py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-neutral-950 font-bold text-xs shadow-md transition active:scale-95 flex items-center justify-center gap-2"
+              >
+                <Package className="w-4 h-4 text-neutral-950" />
+                <span>Descargar Proyecto Android Studio (.zip)</span>
+              </a>
+            </div>
+          </div>
+
           {/* Card 1: PWABuilder 1-Click Generation */}
           <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-neutral-950 to-neutral-900 border border-emerald-500/40 shadow-lg relative overflow-hidden">
             <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
