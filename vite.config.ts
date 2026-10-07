@@ -21,7 +21,9 @@ export default defineConfig(() => {
           'pwa-maskable-512x512.png',
           'app-ads.txt',
           'LectorZews.apk',
+          'LectorZews.aab',
           'lectorzews-android-project.zip',
+          '.well-known/assetlinks.json',
         ],
         manifest: {
           id: '/',

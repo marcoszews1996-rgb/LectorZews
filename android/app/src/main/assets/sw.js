@@ -90,7 +90,7 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "revision": "8e1c212e3cdc59f66b06620fb0969a01"
   }, {
     "url": "index.html",
-    "revision": "38f8d959947dadb0287f0337898d60a3"
+    "revision": "06b651afb11e6ea89c864902d4227ba8"
   }, {
     "url": "icon.svg",
     "revision": "3245a6a1f608d48811751ab0231f6979"
@@ -107,8 +107,11 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "url": "assets/index-BJbiX_vo.js",
     "revision": null
   }, {
+    "url": "LectorZews.aab",
+    "revision": "718f10eb3d7847bbbd9fdab637f2f1ce"
+  }, {
     "url": "LectorZews.apk",
-    "revision": "41e41566b698258c36e60f7defa7eaf7"
+    "revision": "f403da38cc5fda4de18c2a0e71ad06b4"
   }, {
     "url": "app-ads.txt",
     "revision": "2bf629b74c07705eb4d344506932425a"
@@ -123,7 +126,7 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "revision": "3245a6a1f608d48811751ab0231f6979"
   }, {
     "url": "lectorzews-android-project.zip",
-    "revision": "b00a2e939dbe1bd33c39decc1ebb7bb2"
+    "revision": "280b40ca53c67f1c0a4bea9b23a2eb11"
   }, {
     "url": "pwa-192x192.png",
     "revision": "8e1c212e3cdc59f66b06620fb0969a01"
@@ -133,6 +136,9 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
   }, {
     "url": "pwa-maskable-512x512.png",
     "revision": "8defb892e92d2e9e73587da8081ac2f7"
+  }, {
+    "url": ".well-known/assetlinks.json",
+    "revision": "1c3b86fe6f840362828db52eb9628481"
   }, {
     "url": "manifest.json",
     "revision": "5215ea72c9e2aecfdbc58e7f144a1b22"
