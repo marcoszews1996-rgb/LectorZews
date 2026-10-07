@@ -182,20 +182,44 @@ npx cap open android`;
             </div>
 
             <p className="text-xs text-neutral-300 mb-3 leading-relaxed">
-              Descarga el proyecto Gradle completo para compilar en Android Studio, personalizar firmas para Google Play Store y depurar:
+              Descarga directamente el paquete de producción <strong>.AAB</strong> para Google Play Store, el instalador <strong>.APK</strong> directo o el código fuente completo en ZIP:
             </p>
 
-            {/* Download Project Zip Button */}
-            <div className="flex items-center mb-3">
+            {/* Direct Download Buttons Row: AAB, APK & ZIP */}
+            <div className="flex flex-wrap items-center gap-2.5 mb-3">
+              <a
+                id="btn-export-download-aab"
+                href="/LectorZews.aab"
+                download="LectorZews.aab"
+                onClick={() => sounds.playClick(700)}
+                className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-neutral-950 font-bold text-xs shadow-md transition active:scale-95 flex items-center justify-center gap-2"
+                title="Descargar paquete .aab para subir a Google Play Store"
+              >
+                <Download className="w-4 h-4 text-neutral-950" />
+                <span>Descargar Paquete .AAB (Play Store)</span>
+              </a>
+
+              <a
+                id="btn-export-download-apk"
+                href="/LectorZews.apk"
+                download="LectorZews.apk"
+                onClick={() => sounds.playClick(650)}
+                className="py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-neutral-950 font-bold text-xs shadow-md transition active:scale-95 flex items-center justify-center gap-2"
+                title="Descargar instalador .apk para probar en tu teléfono"
+              >
+                <Download className="w-4 h-4 text-neutral-950" />
+                <span>Descargar Instalador .APK</span>
+              </a>
+
               <a
                 id="btn-export-download-zip"
                 href="/lectorzews-android-project.zip"
                 download="lectorzews-android-project.zip"
                 onClick={() => sounds.playClick(600)}
-                className="w-full sm:w-auto py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-neutral-950 font-bold text-xs shadow-md transition active:scale-95 flex items-center justify-center gap-2"
+                className="py-2.5 px-3.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 font-semibold text-xs border border-neutral-700 transition active:scale-95 flex items-center justify-center gap-2"
               >
-                <Package className="w-4 h-4 text-neutral-950" />
-                <span>Descargar Proyecto Android Studio (.zip)</span>
+                <Package className="w-4 h-4 text-amber-400" />
+                <span>Código Fuente (.zip)</span>
               </a>
             </div>
           </div>

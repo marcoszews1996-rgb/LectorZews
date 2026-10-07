@@ -13,6 +13,8 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { sounds } from '../utils/soundEffects';
+import { AmbientTrackId } from '../types';
+import { Music } from 'lucide-react';
 
 interface BackgroundAudioModalProps {
   isOpen: boolean;
@@ -20,6 +22,8 @@ interface BackgroundAudioModalProps {
   isPlaying: boolean;
   onTogglePlay: () => void;
   bookTitle?: string;
+  ambientTrack?: AmbientTrackId;
+  onOpenVoicesModal?: () => void;
 }
 
 export const BackgroundAudioModal: React.FC<BackgroundAudioModalProps> = ({
@@ -28,6 +32,8 @@ export const BackgroundAudioModal: React.FC<BackgroundAudioModalProps> = ({
   isPlaying,
   onTogglePlay,
   bookTitle,
+  ambientTrack = 'none',
+  onOpenVoicesModal,
 }) => {
   if (!isOpen) return null;
 
@@ -105,6 +111,46 @@ export const BackgroundAudioModal: React.FC<BackgroundAudioModalProps> = ({
           >
             {isPlaying ? 'Pausar' : 'Probar Ahora'}
           </button>
+        </div>
+
+        {/* Ambient Instrumental Status Card */}
+        <div className="p-3.5 rounded-2xl bg-neutral-950 border border-emerald-500/30 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+              <Music className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-neutral-200 truncate">
+                Música Instrumental de Fondo:{' '}
+                <span className="text-emerald-300">
+                  {ambientTrack === 'biblioteca'
+                    ? '📖 Biblioteca Acústica'
+                    : ambientTrack === 'lluvia'
+                    ? '🌧️ Lluvia Serena (432 Hz)'
+                    : '🔇 Desactivada'}
+                </span>
+              </p>
+              <p className="text-[11px] text-neutral-400">
+                {ambientTrack !== 'none'
+                  ? 'Suena suavemente de fondo mientras se lee cualquier PDF.'
+                  : 'Puedes activar instrumentales relajantes desde el selector de voz.'}
+              </p>
+            </div>
+          </div>
+
+          {onOpenVoicesModal && (
+            <button
+              id="btn-bg-modal-change-ambient"
+              onClick={() => {
+                sounds.playClick(600);
+                onClose();
+                onOpenVoicesModal();
+              }}
+              className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold transition active:scale-95 shrink-0"
+            >
+              Cambiar
+            </button>
+          )}
         </div>
 
         {/* How it Works / Features */}

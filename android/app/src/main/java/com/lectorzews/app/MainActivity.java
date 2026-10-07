@@ -463,6 +463,25 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void setVoiceByName(String voiceName) {
+            if (tts == null || !isReady || voiceName == null || voiceName.isEmpty()) return;
+            try {
+                Set<Voice> voices = tts.getVoices();
+                if (voices != null) {
+                    for (Voice v : voices) {
+                        if (v.getName().equalsIgnoreCase(voiceName)) {
+                            tts.setVoice(v);
+                            Log.i(TAG, "Selected native voice: " + voiceName);
+                            break;
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error setting voice by name: " + voiceName, e);
+            }
+        }
+
+        @JavascriptInterface
         public String getVoicesJson() {
             if (tts == null || !isReady) return "[]";
             try {

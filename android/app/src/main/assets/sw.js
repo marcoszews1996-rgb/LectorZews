@@ -90,7 +90,7 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "revision": "8e1c212e3cdc59f66b06620fb0969a01"
   }, {
     "url": "index.html",
-    "revision": "8f2e410f63257e3ac540382adca50ba3"
+    "revision": "38f8d959947dadb0287f0337898d60a3"
   }, {
     "url": "icon.svg",
     "revision": "3245a6a1f608d48811751ab0231f6979"
@@ -101,14 +101,14 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "url": "apple-touch-icon.png",
     "revision": "7420fa67dc45205e9d69f371a536e60e"
   }, {
-    "url": "assets/index-Dpy3ErJr.css",
+    "url": "assets/index-BSfAKKYW.css",
     "revision": null
   }, {
-    "url": "assets/index-DDKNJ7Fy.js",
+    "url": "assets/index-BJbiX_vo.js",
     "revision": null
   }, {
     "url": "LectorZews.apk",
-    "revision": "0d82dd7a2921be646cc976239b7c77c3"
+    "revision": "41e41566b698258c36e60f7defa7eaf7"
   }, {
     "url": "app-ads.txt",
     "revision": "2bf629b74c07705eb4d344506932425a"
@@ -123,7 +123,7 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "revision": "3245a6a1f608d48811751ab0231f6979"
   }, {
     "url": "lectorzews-android-project.zip",
-    "revision": "be2f84ce278251ab407d42f49640f70c"
+    "revision": "b00a2e939dbe1bd33c39decc1ebb7bb2"
   }, {
     "url": "pwa-192x192.png",
     "revision": "8e1c212e3cdc59f66b06620fb0969a01"

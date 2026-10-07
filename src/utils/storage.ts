@@ -1,4 +1,4 @@
-import { Bookmark, FavoriteItem, ThemeMode, VoicePresetId, BookHistoryItem } from '../types';
+import { Bookmark, FavoriteItem, ThemeMode, VoicePresetId, BookHistoryItem, AmbientTrackId } from '../types';
 
 const BOOKMARKS_KEY = 'lectorzews_bookmarks_v1';
 const FAVORITES_KEY = 'lectorzews_favorites_v1';
@@ -8,21 +8,27 @@ const HISTORY_KEY = 'lectorzews_history_v1';
 export interface UserSettings {
   speed: number;
   voicePreset: VoicePresetId;
+  selectedVoiceURI: string | null;
   language: string;
   theme: ThemeMode;
   soundsEnabled: boolean;
   fontSize: 'sm' | 'md' | 'lg' | 'xl';
   smartRhythm: boolean;
+  ambientTrack: AmbientTrackId;
+  ambientVolume: number;
 }
 
 const DEFAULT_SETTINGS: UserSettings = {
   speed: 1.0,
   voicePreset: 'femenina',
+  selectedVoiceURI: null,
   language: 'es',
   theme: 'auto',
   soundsEnabled: true,
   fontSize: 'md',
   smartRhythm: true,
+  ambientTrack: 'none',
+  ambientVolume: 0.25,
 };
 
 export function getStoredBookmarks(): Bookmark[] {

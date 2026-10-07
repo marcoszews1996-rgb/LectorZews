@@ -1,7 +1,7 @@
 import React from 'react';
 import { sounds } from '../utils/soundEffects';
 import { SpeedControls } from './SpeedControls';
-import { SleepTimerState } from '../types';
+import { SleepTimerState, AmbientTrackId } from '../types';
 import {
   Play,
   Pause,
@@ -19,6 +19,7 @@ import {
   Clock,
   Maximize2,
   Headphones,
+  Music,
 } from 'lucide-react';
 
 interface AudioPlayerBarProps {
@@ -48,6 +49,8 @@ interface AudioPlayerBarProps {
   isImmersiveMode?: boolean;
   onToggleImmersiveMode?: () => void;
   onOpenBackgroundAudio?: () => void;
+  onOpenVoicesModal?: () => void;
+  ambientTrack?: AmbientTrackId;
 }
 
 export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
@@ -77,6 +80,8 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
   isImmersiveMode = false,
   onToggleImmersiveMode,
   onOpenBackgroundAudio,
+  onOpenVoicesModal,
+  ambientTrack = 'none',
 }) => {
   const sentenceProgress =
     totalSentencesInPage > 0
@@ -343,6 +348,42 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
               >
                 <Clock className="w-4 h-4 text-amber-400" />
                 <span className="hidden xl:inline text-[11px]">Historial</span>
+              </button>
+            )}
+
+            {/* Ambient Instrumental & Voices Button */}
+            {onOpenVoicesModal && (
+              <button
+                id="btn-player-ambient-voices"
+                onClick={() => {
+                  sounds.playClick(600);
+                  onOpenVoicesModal();
+                }}
+                className={`p-2 sm:px-2.5 sm:py-2 rounded-xl border text-xs font-medium flex items-center gap-1.5 transition-all active:scale-95 ${
+                  ambientTrack !== 'none'
+                    ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300 shadow-sm shadow-emerald-950/60'
+                    : 'bg-neutral-900/80 hover:bg-neutral-800 border-neutral-800 text-neutral-300 hover:text-emerald-300'
+                }`}
+                title={
+                  ambientTrack !== 'none'
+                    ? `Fondo: ${ambientTrack === 'biblioteca' ? 'Biblioteca Acústica' : 'Lluvia Serena'}. Toca para cambiar voz o instrumental.`
+                    : 'Añadir música ambiental de fondo o cambiar voz'
+                }
+              >
+                <Music
+                  className={`w-4 h-4 ${
+                    ambientTrack !== 'none'
+                      ? 'text-emerald-400 animate-pulse'
+                      : 'text-neutral-400'
+                  }`}
+                />
+                <span className="hidden xl:inline text-[11px]">
+                  {ambientTrack === 'biblioteca'
+                    ? 'Biblioteca'
+                    : ambientTrack === 'lluvia'
+                    ? 'Lluvia'
+                    : 'Fondo'}
+                </span>
               </button>
             )}
 

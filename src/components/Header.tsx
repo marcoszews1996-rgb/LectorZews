@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { ThemeMode, VoicePresetId, SleepTimerState } from '../types';
+import { ThemeMode, VoicePresetId, SleepTimerState, AmbientTrackId } from '../types';
 import { VOICE_PRESETS } from '../utils/speechEngine';
 import { sounds } from '../utils/soundEffects';
 import {
@@ -18,6 +18,7 @@ import {
   ArrowLeft,
   Globe,
   Maximize2,
+  Music,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -29,6 +30,8 @@ interface HeaderProps {
   onOpenBookmarks: () => void;
   bookmarksCount: number;
   voicePreset: VoicePresetId;
+  selectedVoiceURI?: string | null;
+  ambientTrack?: AmbientTrackId;
   onOpenVoicesModal: () => void;
   currentLanguage?: string;
   onFileUpload: (file: File) => void;
@@ -59,6 +62,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenBookmarks,
   bookmarksCount,
   voicePreset,
+  selectedVoiceURI,
+  ambientTrack,
   onOpenVoicesModal,
   currentLanguage = 'es',
   onFileUpload,
@@ -188,7 +193,35 @@ export const Header: React.FC<HeaderProps> = ({
           <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
           <span className="hidden md:inline text-neutral-300">Voz:</span>
           <span className="font-semibold text-amber-300 truncate max-w-[100px] sm:max-w-[125px]">
-            {voicePreset === 'femenina' ? '👩 Femenina' : '🎙️ Masculina'}
+            {selectedVoiceURI ? '🎙️ Elegida' : voicePreset === 'femenina' ? '👩 Femenina' : '🎙️ Masculina'}
+          </span>
+        </button>
+
+        {/* Ambient Instrumental Selector Trigger */}
+        <button
+          id="btn-header-ambient"
+          onClick={() => {
+            sounds.playClick(600);
+            onOpenVoicesModal();
+          }}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-xs font-medium transition-all active:scale-95 border ${
+            ambientTrack && ambientTrack !== 'none'
+              ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300 shadow-sm'
+              : 'bg-neutral-900/80 hover:bg-neutral-800 border-neutral-800 text-neutral-300'
+          }`}
+          title={
+            ambientTrack && ambientTrack !== 'none'
+              ? `Música ambiental: ${ambientTrack === 'biblioteca' ? 'Biblioteca Acústica' : 'Lluvia Serena'}`
+              : 'Elegir música instrumental de fondo'
+          }
+        >
+          <Music className={`w-3.5 h-3.5 ${ambientTrack && ambientTrack !== 'none' ? 'text-emerald-400' : 'text-neutral-400'}`} />
+          <span className="hidden lg:inline">
+            {ambientTrack === 'biblioteca'
+              ? '📖 Biblioteca'
+              : ambientTrack === 'lluvia'
+              ? '🌧️ Lluvia'
+              : 'Música'}
           </span>
         </button>
 

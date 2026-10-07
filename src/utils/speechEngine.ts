@@ -158,6 +158,7 @@ export const MALE_VOICE_KEYWORDS: string[] = [
 
 export interface SpeakOptions {
   presetId?: VoicePresetId;
+  voiceURI?: string | null;
   speed?: number;
   lang?: string;
   isSequential?: boolean;
@@ -294,6 +295,7 @@ declare global {
       stop: () => void;
       isSpeaking: () => boolean;
       getVoicesJson: () => string;
+      setVoiceByName?: (voiceName: string) => void;
     };
     __onAndroidTTSStart?: (utteranceId: string) => void;
     __onAndroidTTSDone?: (utteranceId: string) => void;
@@ -317,6 +319,8 @@ export class SpeechEngine {
     { onStart?: () => void; onEnd?: () => void; onError?: (err: unknown) => void }
   > = new Map();
   private currentAndroidUttId: string | null = null;
+  private selectedVoiceURI: string | null = null;
+  private voiceListeners: Set<() => void> = new Set();
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -399,6 +403,9 @@ export class SpeechEngine {
 
       if (voiceList.length > 0) {
         this.voices = voiceList;
+        this.voiceListeners.forEach((fn) => {
+          try { fn(); } catch {}
+        });
       }
     };
 
@@ -418,12 +425,12 @@ export class SpeechEngine {
       window.setTimeout(fetchVoices, 100);
       window.setTimeout(fetchVoices, 500);
       window.setTimeout(fetchVoices, 1200);
+      window.setTimeout(fetchVoices, 2500);
     }
   }
 
   public getAvailableVoices(): SpeechSynthesisVoice[] {
-    if (!this.synth) return [];
-    if (this.voices.length === 0) {
+    if (this.voices.length === 0 && this.synth) {
       try {
         const list = this.synth.getVoices();
         if (list && list.length > 0) {
@@ -432,6 +439,65 @@ export class SpeechEngine {
       } catch {}
     }
     return this.voices;
+  }
+
+  public setSelectedVoice(voiceURI: string | null) {
+    this.selectedVoiceURI = voiceURI;
+    if (typeof window !== 'undefined' && window.AndroidTTS?.setVoiceByName && voiceURI) {
+      try {
+        window.AndroidTTS.setVoiceByName(voiceURI);
+      } catch {}
+    }
+  }
+
+  public getSelectedVoiceURI(): string | null {
+    return this.selectedVoiceURI;
+  }
+
+  public onVoicesChanged(listener: () => void): () => void {
+    this.voiceListeners.add(listener);
+    return () => {
+      this.voiceListeners.delete(listener);
+    };
+  }
+
+  /**
+   * Escanea y categoriza todas las voces detectadas en el dispositivo o navegador.
+   * Retorna metadatos útiles para el selector desplegable.
+   */
+  public getScannedVoices(): {
+    voice: SpeechSynthesisVoice;
+    isSpanish: boolean;
+    label: string;
+    langName: string;
+    rawLang: string;
+  }[] {
+    const all = this.getAvailableVoices();
+    return all.map((v) => {
+      const vLang = (v.lang || '').replace('_', '-').toLowerCase();
+      const isSpanish = vLang.startsWith('es') || vLang.includes('spa');
+      const cleanName = v.name || v.voiceURI || 'Voz del sistema';
+
+      let langName = v.lang || 'Sistema';
+      try {
+        if (typeof Intl !== 'undefined' && (Intl as unknown as { DisplayNames?: unknown }).DisplayNames) {
+          const dn = new Intl.DisplayNames(['es'], { type: 'language' });
+          const prefix = vLang.split('-')[0];
+          const resolved = dn.of(prefix);
+          if (resolved) {
+            langName = resolved.charAt(0).toUpperCase() + resolved.slice(1);
+          }
+        }
+      } catch {}
+
+      return {
+        voice: v,
+        isSpanish,
+        label: cleanName,
+        langName: langName + (v.lang ? ` (${v.lang})` : ''),
+        rawLang: v.lang || 'es-ES',
+      };
+    });
   }
 
   /**
@@ -766,13 +832,28 @@ export class SpeechEngine {
       return;
     }
 
+    const customVoiceURI = (typeof speedOrOptions === 'object' && speedOrOptions !== null
+      ? speedOrOptions.voiceURI
+      : undefined) ?? this.selectedVoiceURI;
+
+    let customVoice: SpeechSynthesisVoice | null = null;
+    if (customVoiceURI) {
+      customVoice = this.voices.find(
+        (v) => v.voiceURI === customVoiceURI || v.name === customVoiceURI
+      ) || null;
+    }
+
     const { voice, isNativeMatch } = this.getVoiceForLanguageAndPreset(lang, presetId);
 
     // Configuración acústica calibrada para fluidez y naturalidad (Femenina vs Masculina)
     let finalPitch: number;
     let finalRate: number;
 
-    if (presetId === 'femenina') {
+    if (customVoice) {
+      // Si el usuario eligió una voz específica del escáner, mantener tono neutral calibrado
+      finalPitch = 1.0;
+      finalRate = 1.05 * speed;
+    } else if (presetId === 'femenina') {
       // Voz femenina ágil, fluida y melódica
       finalPitch = isNativeMatch ? 1.10 : 1.20;
       finalRate = 1.08 * speed;
@@ -794,13 +875,18 @@ export class SpeechEngine {
 
     // Prioridad 1: Si estamos ejecutando en la App Nativa de Android, usamos el motor nativo TextToSpeech
     if (hasAndroidTTS && window.AndroidTTS) {
+      if (customVoiceURI) {
+        try {
+          window.AndroidTTS.setVoiceByName?.(customVoiceURI);
+        } catch {}
+      }
       const uttId = 'utt_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
       this.androidCallbacks.set(uttId, { onStart, onEnd, onError });
       this.currentAndroidUttId = uttId;
       this.isSpeakingActive = true;
       this.isPausedState = false;
 
-      const langFull = this.getFullLangCode(lang);
+      const langFull = customVoice?.lang || this.getFullLangCode(lang);
       try {
         window.AndroidTTS.speak(textToSpeak, finalRate, finalPitch, langFull, uttId);
       } catch (e) {
@@ -822,7 +908,10 @@ export class SpeechEngine {
     (window as unknown as { __lectorActiveUtterance?: SpeechSynthesisUtterance }).__lectorActiveUtterance = utterance;
 
     // Asignación de voz e idioma
-    if (voice) {
+    if (customVoice) {
+      utterance.voice = customVoice;
+      utterance.lang = customVoice.lang || this.getFullLangCode(lang);
+    } else if (voice) {
       utterance.voice = voice;
       utterance.lang = voice.lang || this.getFullLangCode(lang);
     } else {

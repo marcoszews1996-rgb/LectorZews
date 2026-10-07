@@ -2,6 +2,16 @@ export type ThemeMode = 'auto' | 'dark' | 'light';
 
 export type VoicePresetId = 'femenina' | 'masculina';
 
+export type AmbientTrackId = 'none' | 'biblioteca' | 'lluvia';
+
+export interface AmbientTrack {
+  id: AmbientTrackId;
+  name: string;
+  badge: string;
+  description: string;
+  icon: string;
+}
+
 export interface VoicePreset {
   id: VoicePresetId;
   name: string;

@@ -10,6 +10,7 @@ import {
   SleepTimerState,
   SleepTimerMode,
   BookHistoryItem,
+  AmbientTrackId,
 } from './types';
 import { SAMPLE_BOOKS } from './data/sampleBooks';
 import { parsePdfArrayBuffer, createDocumentFromText } from './utils/pdfParser';
@@ -21,6 +22,7 @@ import {
 } from './utils/speechEngine';
 import { sounds } from './utils/soundEffects';
 import { backgroundAudioService } from './utils/backgroundAudio';
+import { ambientAudioService } from './utils/ambientAudio';
 import {
   getStoredBookmarks,
   saveBookmark,
@@ -64,6 +66,9 @@ export default function App() {
   const [soundsEnabled, setSoundsEnabled] = useState<boolean>(() => settings.soundsEnabled ?? true);
   const [speed, setSpeed] = useState<number>(() => settings.speed || 1.0);
   const [voicePreset, setVoicePreset] = useState<VoicePresetId>(() => settings.voicePreset || 'femenina');
+  const [selectedVoiceURI, setSelectedVoiceURI] = useState<string | null>(() => settings.selectedVoiceURI || null);
+  const [ambientTrack, setAmbientTrack] = useState<AmbientTrackId>(() => settings.ambientTrack || 'none');
+  const [ambientVolume, setAmbientVolume] = useState<number>(() => settings.ambientVolume ?? 0.25);
   const [smartRhythm, setSmartRhythm] = useState<boolean>(() => settings.smartRhythm ?? true);
   const [language, setLanguage] = useState<string>(() => settings.language || DEFAULT_LANGUAGE);
 
@@ -221,10 +226,82 @@ export default function App() {
     }
   };
 
+  // Sync ambient and speechEngine initial states
+  useEffect(() => {
+    speechEngine.setSelectedVoice(selectedVoiceURI);
+  }, [selectedVoiceURI]);
+
+  useEffect(() => {
+    ambientAudioService.setTrack(ambientTrack);
+    ambientAudioService.setVolume(ambientVolume);
+  }, [ambientTrack, ambientVolume]);
+
+  // Keep ambient music in sync with playback state
+  useEffect(() => {
+    if (isPlaying) {
+      if (ambientTrack !== 'none') {
+        ambientAudioService.start();
+      }
+    } else {
+      ambientAudioService.pause();
+    }
+  }, [isPlaying, ambientTrack]);
+
+  const handleSelectSpecificVoice = (voiceURI: string | null) => {
+    speechEngine.cancelCurrentSpeech();
+    setSelectedVoiceURI(voiceURI);
+    speechEngine.setSelectedVoice(voiceURI);
+    updateSettings({ selectedVoiceURI: voiceURI });
+
+    if (voiceURI) {
+      const scanned = speechEngine.getScannedVoices().find(
+        (v) => v.voice.voiceURI === voiceURI || v.voice.name === voiceURI
+      );
+      showToast(`🎙️ Voz seleccionada: ${scanned?.label || voiceURI}`);
+    } else {
+      showToast(`✨ Volviendo a voz automática (${voicePreset === 'femenina' ? 'Femenina' : 'Masculina'})`);
+    }
+
+    if (isPlaying && document) {
+      speakSentence(currentPageIndex, currentSentenceIndex);
+    }
+  };
+
+  const handleSelectAmbientTrack = (track: AmbientTrackId) => {
+    setAmbientTrack(track);
+    ambientAudioService.setTrack(track);
+    ambientAudioService.setVolume(ambientVolume);
+    updateSettings({ ambientTrack: track });
+
+    if (track === 'biblioteca') {
+      showToast('📖 Instrumental activado: Biblioteca Acústica & Piano Cálido');
+    } else if (track === 'lluvia') {
+      showToast('🌧️ Instrumental activado: Lluvia Serena & Drones Meditativos');
+    } else {
+      showToast('🔇 Instrumental desactivado (Solo voz)');
+    }
+
+    if (isPlaying) {
+      if (track !== 'none') {
+        ambientAudioService.start();
+      } else {
+        ambientAudioService.stop();
+      }
+    }
+  };
+
+  const handleAmbientVolumeChange = (vol: number) => {
+    setAmbientVolume(vol);
+    ambientAudioService.setVolume(vol);
+    updateSettings({ ambientVolume: vol });
+  };
+
   const handleSelectVoicePreset = (preset: VoicePresetId) => {
     speechEngine.cancelCurrentSpeech();
     setVoicePreset(preset);
-    updateSettings({ voicePreset: preset });
+    setSelectedVoiceURI(null);
+    speechEngine.setSelectedVoice(null);
+    updateSettings({ voicePreset: preset, selectedVoiceURI: null });
 
     if (preset === 'femenina') {
       showToast('👩 Voz Femenina seleccionada');
@@ -1040,6 +1117,8 @@ export default function App() {
           onOpenBookmarks={() => setIsBookmarksOpen(true)}
           bookmarksCount={bookmarks.length}
           voicePreset={voicePreset}
+          selectedVoiceURI={selectedVoiceURI}
+          ambientTrack={ambientTrack}
           onOpenVoicesModal={() => setIsVoicesOpen(true)}
           onFileUpload={handleFileUpload}
           isLoadingFile={isLoadingFile}
@@ -1200,6 +1279,8 @@ export default function App() {
           isImmersiveMode={isImmersiveMode}
           onToggleImmersiveMode={() => handleToggleImmersive()}
           onOpenBackgroundAudio={() => setIsBackgroundModalOpen(true)}
+          onOpenVoicesModal={() => setIsVoicesOpen(true)}
+          ambientTrack={ambientTrack}
         />
       )}
 
@@ -1232,16 +1313,24 @@ export default function App() {
         isCurrentDocFavorite={document ? isFavorite(document.fileName) : false}
       />
 
-      {/* Voices Selector Modal (Femenina & Masculina) */}
+      {/* Voices & Ambient Instrumentals Modal */}
       <VoiceSelectorModal
         isOpen={isVoicesOpen}
         onClose={() => setIsVoicesOpen(false)}
         currentVoicePreset={voicePreset}
         onSelectVoicePreset={handleSelectVoicePreset}
+        selectedVoiceURI={selectedVoiceURI}
+        onSelectVoiceURI={handleSelectSpecificVoice}
+        currentLanguage={language}
+        onSelectLanguage={handleSelectLanguage}
         speed={speed}
         onSpeedChange={handleSpeedChange}
         smartRhythm={smartRhythm}
         onToggleSmartRhythm={handleToggleSmartRhythm}
+        ambientTrack={ambientTrack}
+        onSelectAmbientTrack={handleSelectAmbientTrack}
+        ambientVolume={ambientVolume}
+        onAmbientVolumeChange={handleAmbientVolumeChange}
       />
 
       {/* Sleep Timer Dedicated Modal */}
@@ -1288,6 +1377,8 @@ export default function App() {
         isPlaying={isPlaying}
         onTogglePlay={handlePlayPause}
         bookTitle={document?.title}
+        ambientTrack={ambientTrack}
+        onOpenVoicesModal={() => setIsVoicesOpen(true)}
       />
 
       {/* Google AdMob Full-Screen Interstitial Ad Modal (Active on 3rd PDF opening) */}
