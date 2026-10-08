@@ -5,7 +5,7 @@
       "headers": [
         {
           "key": "Content-Type",
-          "value": "application/json"
+          "value": "application/json; charset=utf-8"
         },
         {
           "key": "Access-Control-Allow-Origin",
@@ -16,6 +16,16 @@
           "value": "public, max-age=3600, must-revalidate"
         }
       ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/.well-known/:path*",
+      "destination": "/.well-known/:path*"
+    },
+    {
+      "source": "/((?!.well-known).*)",
+      "destination": "/index.html"
     }
   ]
 }
