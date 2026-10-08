@@ -12,8 +12,6 @@ import {
   ArrowLeft,
   Clock,
   Play,
-  CheckCircle2,
-  FileCheck,
   Maximize2,
 } from 'lucide-react';
 
@@ -43,11 +41,9 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
   currentSentenceIndex,
   isPlaying,
   onSentenceClick,
-  onBookmarkSentence,
   bookmarkedSentencesOnPage,
   onSelectSampleBook,
   onUploadClick,
-  isDragging,
   fontSize,
   onReturnToMenu,
   history = [],
@@ -64,17 +60,13 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
     if (activeSentenceRef.current && isPlaying) {
       const el = activeSentenceRef.current;
       const rect = el.getBoundingClientRect();
-      const viewportHeight =
-        window.innerHeight || window.document.documentElement.clientHeight;
-      
-      // Margen de confort: si está visible holgadamente en el tercio central, NO recalcular scroll
+      const viewportHeight = window.innerHeight || window.document.documentElement.clientHeight;
+
       const isComfortablyVisible = rect.top >= 90 && rect.bottom <= viewportHeight - 140;
 
       if (!isComfortablyVisible) {
-        // En móviles o pantallas táctiles, 'auto' previene el jank y sobrecarga de animación del WebView
-        const isMobile = window.innerWidth <= 768;
         el.scrollIntoView({
-          behavior: isMobile ? 'auto' : 'smooth',
+          behavior: 'auto',
           block: 'center',
           inline: 'nearest',
         });
@@ -96,78 +88,70 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
     }
   };
 
+  // Android Native Mobile Home Screen (When no book is open)
   if (!document) {
     return (
       <div
         id="empty-state-welcome"
-        className="relative z-10 max-w-4xl mx-auto px-4 py-8 sm:py-14 flex flex-col items-center text-center animate-fadeIn"
+        className="relative z-10 w-full px-4 sm:px-6 py-6 sm:py-10 flex flex-col items-center text-center animate-fadeIn select-none"
       >
-        {/* Vintage Radio & Library Badge */}
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-medium mb-4 backdrop-blur-md">
+        {/* Android App Header Pill */}
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 text-amber-300 text-xs font-semibold mb-3 backdrop-blur-md">
           <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-          <span>Voz viva en cualquier dispositivo · Sin lags</span>
+          <span>Lector de Libros y Documentos PDF</span>
         </div>
 
-        <h2 className="text-2xl sm:text-4xl font-bold font-title text-neutral-100 tracking-wide max-w-xl mb-3">
+        <h2 className="text-2xl sm:text-3xl font-bold font-title text-neutral-100 tracking-wide max-w-xl mb-2">
           Tu Biblioteca en Voz Alta con{' '}
           <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-amber-200 to-amber-400">
             LectorZews
           </span>
         </h2>
 
-        <p className="text-sm sm:text-base text-neutral-300 max-w-lg mb-8 font-serif-elegant">
-          Arrastra o carga cualquier archivo en formato PDF. Disfruta de voz femenina y voz masculina
-          optimizadas en español nativo, con marcadores y temporizador de reposo.
+        <p className="text-xs sm:text-sm text-neutral-300 max-w-md mb-6 font-serif-elegant leading-relaxed">
+          Toca para abrir cualquier libro o documento PDF guardado en tu teléfono. Disfruta de narración en español en segundo plano, temporizador de reposo y música instrumental.
         </p>
 
-        {/* Big Drag & Drop or Upload Trigger */}
+        {/* Primary Android Mobile Action Card: Abrir PDF */}
         <div
           id="dropzone-welcome"
           onClick={() => {
             sounds.playClick(600);
             onUploadClick();
           }}
-          className={`w-full max-w-lg p-8 sm:p-10 rounded-2xl border-2 border-dashed transition-all cursor-pointer backdrop-blur-md flex flex-col items-center justify-center group ${
-            isDragging
-              ? 'border-amber-400 bg-amber-500/20 scale-102'
-              : 'border-amber-500/30 hover:border-amber-400/60 bg-neutral-950/60 hover:bg-neutral-900/80 shadow-xl'
-          }`}
+          className="w-full max-w-md p-6 rounded-2xl bg-gradient-to-br from-amber-500/20 via-neutral-900/90 to-neutral-950/95 active:scale-[0.98] transition-all cursor-pointer shadow-xl backdrop-blur-xl flex flex-col items-center justify-center group"
         >
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500/20 to-amber-900/30 border border-amber-500/40 flex items-center justify-center text-amber-300 mb-4 group-hover:scale-110 transition-transform">
-            <Upload className="w-7 h-7" />
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 text-neutral-950 flex items-center justify-center shadow-lg shadow-amber-950/40 mb-3 group-active:scale-95 transition-transform">
+            <Upload className="w-7 h-7 stroke-[2.5]" />
           </div>
-          <span className="text-base sm:text-lg font-semibold text-neutral-100 mb-1">
-            Seleccionar archivo PDF
+          <span className="text-base sm:text-lg font-bold text-neutral-100 mb-1">
+            Abrir libro o PDF
           </span>
-          <p className="text-xs text-neutral-400">
-            o arrastra tu documento aquí desde tu computadora o teléfono
+          <p className="text-xs text-neutral-400 text-center">
+            Toca aquí para seleccionar un archivo PDF de tu celular
           </p>
-          <div className="mt-4 flex items-center gap-2 text-[11px] text-amber-400/80 font-mono">
-            <span>• Compatible con Android e iOS</span>
-            <span>• PDF & TXT</span>
-          </div>
         </div>
 
-        {/* Recently Played Books / History Quick Resume */}
+        {/* Recently Played Books / Historial Móvil */}
         {history.length > 0 && (
-          <div className="w-full max-w-3xl mt-8 text-left">
-            <div className="flex items-center justify-between mb-3 px-1">
-              <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-amber-400 font-semibold">
-                <Clock className="w-4 h-4 text-amber-400" />
-                <span>Libros reproducidos recientemente (Historial):</span>
+          <div className="w-full max-w-md sm:max-w-2xl mt-8 text-left">
+            <div className="flex items-center justify-between mb-2.5 px-1">
+              <div className="flex items-center gap-1.5 text-xs uppercase tracking-wider text-amber-400 font-bold">
+                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                <span>Libros recientes</span>
               </div>
               {onOpenHistory && (
                 <button
                   id="btn-reader-view-all-history"
                   onClick={onOpenHistory}
-                  className="text-xs text-amber-400/90 hover:text-amber-300 underline underline-offset-2 transition"
+                  className="text-xs text-amber-400/90 active:text-amber-300 underline underline-offset-2 transition"
                 >
                   Ver todo ({history.length})
                 </button>
               )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {history.slice(0, 4).map((item) => (
                 <div
                   key={item.id}
@@ -176,22 +160,22 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
                     sounds.playDocumentLoaded();
                     if (onResumeBook) onResumeBook(item);
                   }}
-                  className="p-3.5 rounded-xl cursor-pointer transition-all active:scale-98 flex items-center justify-between gap-3 group backdrop-blur-md border bg-neutral-950/70 hover:bg-neutral-900/90 border-amber-500/25 hover:border-amber-500/50 shadow-md"
+                  className="p-3.5 rounded-xl cursor-pointer active:scale-[0.98] transition-all flex items-center justify-between gap-3 bg-neutral-900/80 active:bg-neutral-800 shadow-md backdrop-blur-md"
                 >
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-[10px] px-2 py-0.5 rounded-md font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      <span className="text-[10px] px-2 py-0.5 rounded-md font-mono bg-amber-500/20 text-amber-300 font-semibold">
                         Pág. {item.lastPageIndex + 1}/{item.totalPages} ({Math.round(item.progressPercent)}%)
                       </span>
                     </div>
-                    <h3 className="font-title text-sm font-bold text-neutral-100 group-hover:text-amber-200 transition truncate">
+                    <h3 className="font-title text-xs sm:text-sm font-bold text-neutral-100 truncate">
                       {item.title}
                     </h3>
                     <p className="text-[11px] text-neutral-400 truncate">
                       Frase {item.lastSentenceIndex + 1}
                     </p>
                   </div>
-                  <div className="w-8 h-8 rounded-full bg-amber-500/15 group-hover:bg-amber-500 group-hover:text-neutral-950 flex items-center justify-center text-amber-400 transition shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-amber-500 text-neutral-950 flex items-center justify-center shrink-0 shadow-sm">
                     <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
                   </div>
                 </div>
@@ -200,17 +184,17 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
           </div>
         )}
 
-        {/* Quick Sample Library */}
-        <div className="w-full max-w-3xl mt-10 text-left">
-          <div className="flex items-center justify-between mb-3 px-1">
-            <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-amber-400 font-semibold">
-              <BookOpen className="w-4 h-4" />
-              <span>O prueba con una obra clásica de la biblioteca:</span>
+        {/* Quick Sample Library / Clásicos para escuchar */}
+        <div className="w-full max-w-md sm:max-w-2xl mt-8 mb-6 text-left">
+          <div className="flex items-center justify-between mb-2.5 px-1">
+            <div className="flex items-center gap-1.5 text-xs uppercase tracking-wider text-amber-400 font-bold">
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Obras clásicas de la biblioteca</span>
             </div>
-            <span className="text-xs text-neutral-400">Listo para escuchar</span>
+            <span className="text-[11px] text-neutral-400">Listas para reproducir</span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             {SAMPLE_BOOKS.map((book) => (
               <div
                 key={book.id}
@@ -219,49 +203,33 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
                   sounds.playDocumentLoaded();
                   onSelectSampleBook(book.id);
                 }}
-                className={`p-4 rounded-xl cursor-pointer transition-all active:scale-98 flex items-center justify-between gap-3 group backdrop-blur-md border ${
+                className={`p-3.5 rounded-xl cursor-pointer active:scale-[0.98] transition-all flex items-center justify-between gap-3 bg-neutral-900/80 active:bg-neutral-800 shadow-md backdrop-blur-md ${
                   book.id === 'corazon_delator'
-                    ? 'bg-gradient-to-r from-red-950/40 to-neutral-950/80 border-red-800/40 hover:border-red-500/60 shadow-lg shadow-red-950/20'
-                    : 'bg-neutral-950/60 hover:bg-neutral-900/90 border-amber-500/15 hover:border-amber-500/40'
+                    ? 'bg-gradient-to-r from-red-950/50 to-neutral-900/90'
+                    : ''
                 }`}
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span
-                      className={`text-xs px-2 py-0.5 rounded-md font-mono text-[10px] ${
+                      className={`text-[10px] px-2 py-0.5 rounded-md font-mono font-semibold ${
                         book.id === 'corazon_delator'
-                          ? 'bg-red-500/20 text-red-300 border border-red-500/30'
-                          : 'bg-amber-500/10 text-amber-300'
+                          ? 'bg-red-500/20 text-red-300'
+                          : 'bg-amber-500/20 text-amber-300'
                       }`}
                     >
                       {book.id === 'corazon_delator' ? 'TERROR' : book.language.toUpperCase()}
                     </span>
-                    <span
-                      className={`text-xs truncate ${
-                        book.id === 'corazon_delator' ? 'text-red-300/80 font-medium' : 'text-neutral-400'
-                      }`}
-                    >
+                    <span className="text-[11px] text-neutral-400 truncate">
                       {book.genre}
                     </span>
                   </div>
-                  <h4
-                    className={`text-sm font-bold transition-colors truncate ${
-                      book.id === 'corazon_delator'
-                        ? 'text-red-100 group-hover:text-red-300'
-                        : 'text-neutral-100 group-hover:text-amber-300'
-                    }`}
-                  >
+                  <h4 className="text-xs sm:text-sm font-bold text-neutral-100 truncate">
                     {book.title}
                   </h4>
-                  <p className="text-xs text-neutral-400 truncate">{book.author}</p>
+                  <p className="text-[11px] text-neutral-400 truncate">{book.author}</p>
                 </div>
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-colors ${
-                    book.id === 'corazon_delator'
-                      ? 'bg-red-500/20 text-red-400 group-hover:bg-red-500/30'
-                      : 'bg-amber-500/10 group-hover:bg-amber-500/20 text-amber-400'
-                  }`}
-                >
+                <div className="w-8 h-8 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
                   <ArrowRight className="w-4 h-4" />
                 </div>
               </div>
@@ -272,6 +240,7 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
     );
   }
 
+  // Active Document Reader (100% Android Edge-to-Edge - NO WEBVIEW BORDERS)
   const currentPage = document.pages[currentPageIndex] || {
     pageNumber: currentPageIndex + 1,
     text: '',
@@ -282,33 +251,25 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
     <div
       ref={readerContainerRef}
       id="document-reader-view"
-      className={`relative z-10 w-full max-w-4xl mx-auto px-4 sm:px-6 transition-all duration-300 ${
-        isImmersiveMode ? 'pt-6 sm:pt-8 pb-16' : 'pt-4 pb-48 sm:pb-52'
-      }`}
+      className="relative z-10 w-full min-h-full px-4 sm:px-6 pt-2 pb-44 sm:pb-48 transition-all duration-200"
     >
-      {/* Document Info Header Bar - Hidden in Immersive Mode for 100% Text Focus */}
+      {/* Native Android Mobile Reading Sub-Bar (Hidden in Immersive Mode) */}
       {!isImmersiveMode && (
-        <div className="mb-4 p-3 sm:p-4 rounded-2xl bg-neutral-950/70 border border-amber-500/20 backdrop-blur-md flex items-center justify-between gap-3 shadow-md">
-          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
-              <FileText className="w-4 h-4" />
-            </div>
+        <div className="mb-3 py-2 px-3 rounded-xl bg-neutral-900/70 backdrop-blur-md flex items-center justify-between gap-2 shadow-sm">
+          <div className="flex items-center gap-2 min-w-0">
+            <FileText className="w-4 h-4 text-amber-400 shrink-0" />
             <div className="min-w-0">
-              <h2 className="text-xs sm:text-sm font-bold text-neutral-100 truncate font-serif-elegant">
+              <h2 className="text-xs font-bold text-neutral-100 truncate">
                 {document.title}
               </h2>
-              <p className="text-[11px] text-neutral-400 truncate">
-                {document.totalPages} páginas en total · {document.fileName}
-              </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <span className="hidden xs:inline-block px-2.5 py-1 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-300 font-mono text-xs font-semibold">
-              Página {currentPage.pageNumber} de {document.totalPages}
+            <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 font-mono text-[11px] font-bold">
+              Pág. {currentPage.pageNumber} / {document.totalPages}
             </span>
 
-            {/* Immersive Mode Trigger */}
             {onToggleImmersiveMode && (
               <button
                 id="btn-reader-immersive"
@@ -316,11 +277,10 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
                   sounds.playClick(850);
                   onToggleImmersiveMode();
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-neutral-900/80 hover:bg-neutral-800 border border-neutral-700/80 text-neutral-200 hover:text-amber-300 text-xs font-semibold shadow-sm transition active:scale-95"
-                title="Modo Inmersivo: Ocultar controles para enfoque total de lectura"
+                className="p-1.5 rounded-lg bg-neutral-800 text-neutral-200 active:scale-95 transition"
+                title="Modo pantalla completa de lectura"
               >
                 <Maximize2 className="w-3.5 h-3.5 text-amber-400" />
-                <span className="hidden sm:inline">Modo Inmersivo</span>
               </button>
             )}
 
@@ -331,39 +291,34 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
                   sounds.playClick(500);
                   onReturnToMenu();
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 text-xs font-semibold shadow-sm transition active:scale-95"
-                title="Volver a la biblioteca principal"
+                className="p-1.5 rounded-lg bg-neutral-800 text-neutral-200 active:scale-95 transition"
+                title="Volver a la biblioteca"
               >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Volver al Menú</span>
+                <ArrowLeft className="w-3.5 h-3.5 text-amber-300" />
               </button>
             )}
           </div>
         </div>
       )}
 
-      {/* Reader Book Page Container */}
+      {/* Edge-to-Edge Pure Android Reading Canvas (NO BORDERS, NO BOX SHADOWS) */}
       <div
         id="book-page-canvas"
-        className={`p-6 sm:p-10 rounded-2xl bg-neutral-950/80 border backdrop-blur-md shadow-2xl transition-all ${
-          isImmersiveMode
-            ? 'border-amber-500/30 ring-1 ring-amber-500/20 sm:p-12'
-            : 'border-amber-500/20'
-        }`}
+        className="w-full py-2 transition-all select-text"
       >
-        <div className="border-b border-neutral-800/80 pb-3 mb-6 flex items-center justify-between text-xs text-neutral-400">
-          <span className="font-serif-elegant italic">
+        <div className="pb-2 mb-3 flex items-center justify-between text-[11px] text-neutral-400/90 font-serif-elegant">
+          <span className="italic">
             {isImmersiveMode
-              ? `Página ${currentPage.pageNumber} de ${document.totalPages} · Modo Inmersivo activo`
-              : 'Haz clic en cualquier frase para comenzar a escuchar desde ahí'}
+              ? `Página ${currentPage.pageNumber} de ${document.totalPages}`
+              : 'Toca cualquier frase para escuchar desde allí:'}
           </span>
-          <span className="font-mono text-[11px] text-amber-400/80">
-            {currentPage.sentences.length} frases en esta página
+          <span className="font-mono text-amber-400/80">
+            {currentPage.sentences.length} frases
           </span>
         </div>
 
-        {/* Sentences with Interactive Highlight and Direct Click */}
-        <div className={`space-y-1 font-serif-elegant ${getFontSizeClass()} text-neutral-200`}>
+        {/* Sentences with Natural Fluid Highlighting */}
+        <div className={`font-serif-elegant ${getFontSizeClass()} text-neutral-100 leading-relaxed space-y-1`}>
           {currentPage.sentences.map((sentence, sIdx) => {
             const isCurrent = sIdx === currentSentenceIndex;
             const isBookmarked = bookmarkedSentencesOnPage.has(sIdx);
@@ -377,15 +332,14 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
                   sounds.playTick();
                   onSentenceClick(sIdx);
                 }}
-                className={`inline-block mr-1.5 px-1.5 py-0.5 rounded-lg cursor-pointer transition-colors duration-150 select-text ${
+                className={`inline-block mr-1.5 px-1 py-0.5 rounded cursor-pointer transition-colors duration-150 ${
                   isCurrent
-                    ? 'bg-amber-400/25 text-amber-100 ring-1 ring-amber-400/60 shadow-sm shadow-amber-500/20 font-medium'
-                    : 'hover:bg-neutral-800/60 hover:text-white'
-                } ${isBookmarked ? 'border-b border-amber-400' : ''}`}
-                title="Pulsa para escuchar esta frase"
+                    ? 'bg-amber-400/30 text-amber-100 font-semibold shadow-sm'
+                    : 'active:bg-neutral-800/80 hover:text-white'
+                } ${isBookmarked ? 'underline decoration-amber-400 decoration-2' : ''}`}
               >
                 {isBookmarked && (
-                  <BookmarkIcon className="inline w-3 h-3 text-amber-400 mr-1 fill-amber-400/40 align-middle" />
+                  <BookmarkIcon className="inline w-3.5 h-3.5 text-amber-400 mr-1 fill-amber-400/40 align-middle" />
                 )}
                 {sentence}{' '}
               </span>

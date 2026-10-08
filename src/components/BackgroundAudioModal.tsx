@@ -219,38 +219,15 @@ export const BackgroundAudioModal: React.FC<BackgroundAudioModalProps> = ({
           </ol>
         </div>
 
-        {/* Technical Reality & Instant Multitask Solutions */}
-        <div className="p-3.5 rounded-2xl bg-neutral-950/70 border border-amber-500/40 text-xs space-y-2.5">
+        {/* Android Multitask Advice */}
+        <div className="p-3.5 rounded-2xl bg-neutral-950/70 border border-amber-500/30 text-xs space-y-2">
           <div className="flex items-center gap-2 font-semibold text-amber-300">
             <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
-            <span>¿Es normal que se detenga al apagar la pantalla en el APK de prueba?</span>
+            <span>Consejo para multitarea en Android</span>
           </div>
           <p className="text-[11px] text-neutral-300 leading-relaxed">
-            <strong>Sí, es 100% normal en el APK de prueba.</strong> PWABuilder empaqueta la app utilizando el motor interno de <strong>Google Chrome (TWA)</strong>. Google Chrome tiene una restricción de fábrica que bloquea la síntesis de voz en cuanto el móvil se bloquea o la app pierde foco total.
+            Puedes abrir <strong>LectorZews</strong> en <em>Ventana Flotante</em> o <em>Pantalla Dividida</em> en tu teléfono Android mientras revisas WhatsApp, navegas en internet o lees notas, y la voz continuará narrando sin detenerse.
           </p>
-          <div className="pt-1 space-y-1.5 text-[11px] text-neutral-300">
-            <p className="font-semibold text-amber-200">¿Cómo usar la app ahora mismo mientras haces otras cosas?</p>
-            <div className="space-y-1.5 pl-1">
-              <div className="p-2 rounded-xl bg-neutral-900 border border-neutral-800">
-                <p className="font-semibold text-emerald-300">📱 Opción 1 (Recomendada): Pantalla Dividida o Ventana Flotante</p>
-                <p className="text-[10px] text-neutral-400 mt-0.5">
-                  Abre LectorZews en ventana emergente o pantalla dividida arriba en tu teléfono. Puedes chatear en WhatsApp, navegar en TikTok, Instagram o trabajar y la voz <strong>nunca se pausará</strong>.
-                </p>
-              </div>
-              <div className="p-2 rounded-xl bg-neutral-900 border border-neutral-800">
-                <p className="font-semibold text-amber-300">🕯️ Opción 2: Modo Pantalla Activa (WakeLock)</p>
-                <p className="text-[10px] text-neutral-400 mt-0.5">
-                  La app activa el modo atril con tema oscuro: la pantalla no se apaga sola y puedes dejar el móvil sobre tu mesa o cargador escuchando tu libro sin consumir batería.
-                </p>
-              </div>
-              <div className="p-2 rounded-xl bg-neutral-900 border border-neutral-800">
-                <p className="font-semibold text-indigo-300">📦 Opción 3: Publicación definitiva en Play Store (Capacitor)</p>
-                <p className="text-[10px] text-neutral-400 mt-0.5">
-                  La compilación nativa en Android Studio con Capacitor añade un <em>Foreground Service</em> nativo de Android, que le permite hablar con la pantalla 100% apagada dentro del bolsillo.
-                </p>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Close Button */}

@@ -1,6 +1,5 @@
 import React, { useRef } from 'react';
 import { ThemeMode, VoicePresetId, SleepTimerState, AmbientTrackId } from '../types';
-import { VOICE_PRESETS } from '../utils/speechEngine';
 import { sounds } from '../utils/soundEffects';
 import {
   Bookmark as BookmarkIcon,
@@ -10,14 +9,9 @@ import {
   Moon,
   Sparkles,
   Upload,
-  BookOpen,
   Headphones,
-  Laptop,
   Clock,
-  Smartphone,
   ArrowLeft,
-  Globe,
-  Maximize2,
   Music,
 } from 'lucide-react';
 
@@ -39,7 +33,6 @@ interface HeaderProps {
   hasDocument: boolean;
   sleepTimerState?: SleepTimerState;
   onOpenSleepTimer?: () => void;
-  onOpenAndroidExport?: () => void;
   onReturnToMenu?: () => void;
   onOpenHistory?: () => void;
   historyCount?: number;
@@ -47,10 +40,6 @@ interface HeaderProps {
   onToggleImmersiveMode?: () => void;
   onOpenBackgroundAudio?: () => void;
   isPlaying?: boolean;
-  isInstalled?: boolean;
-  onOpenInstallModal?: () => void;
-  onToggleFullscreen?: () => void;
-  isFullscreen?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -65,24 +54,14 @@ export const Header: React.FC<HeaderProps> = ({
   selectedVoiceURI,
   ambientTrack,
   onOpenVoicesModal,
-  currentLanguage = 'es',
   onFileUpload,
   isLoadingFile,
   hasDocument,
   sleepTimerState,
   onOpenSleepTimer,
-  onOpenAndroidExport,
   onReturnToMenu,
   onOpenHistory,
   historyCount = 0,
-  isImmersiveMode = false,
-  onToggleImmersiveMode,
-  onOpenBackgroundAudio,
-  isPlaying = false,
-  isInstalled = false,
-  onOpenInstallModal,
-  onToggleFullscreen,
-  isFullscreen = false,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -92,7 +71,6 @@ export const Header: React.FC<HeaderProps> = ({
       sounds.playDocumentLoaded();
       onFileUpload(file);
     }
-    // reset input so same file can be reloaded if needed
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -101,61 +79,52 @@ export const Header: React.FC<HeaderProps> = ({
   const getThemeIcon = () => {
     if (theme === 'dark') return <Moon className="w-4 h-4 text-amber-300" />;
     if (theme === 'light') return <Sun className="w-4 h-4 text-amber-500" />;
-    return <Laptop className="w-4 h-4 text-neutral-400" />;
-  };
-
-  const getThemeLabel = () => {
-    if (theme === 'dark') return 'Oscuro';
-    if (theme === 'light') return 'Claro';
-    return 'Auto';
+    return <Moon className="w-4 h-4 text-neutral-400" />;
   };
 
   return (
     <header
       id="main-app-header"
-      className="relative z-20 w-full px-3 sm:px-6 py-3 flex items-center justify-between border-b border-amber-900/20 bg-neutral-950/70 backdrop-blur-md transition-colors"
+      className="relative z-30 w-full px-3 sm:px-5 pt-[calc(0.5rem+env(safe-area-inset-top,0px))] pb-2.5 flex items-center justify-between bg-neutral-950/90 backdrop-blur-xl transition-all select-none"
     >
-      {/* Brand & Return to Menu */}
+      {/* Brand & Android Back Navigation */}
       <div className="flex items-center gap-2 sm:gap-3">
-        {hasDocument && onReturnToMenu && (
+        {hasDocument && onReturnToMenu ? (
           <button
             id="btn-header-back-menu"
             onClick={() => {
               sounds.playClick(500);
               onReturnToMenu();
             }}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-200 text-xs font-semibold shadow-sm transition-all active:scale-95 shrink-0"
-            title="Volver a la biblioteca / Menú principal"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 active:scale-95 text-amber-200 text-xs font-semibold transition shrink-0"
+            title="Volver a la biblioteca"
           >
             <ArrowLeft className="w-4 h-4 text-amber-300" />
-            <span className="hidden xs:inline sm:inline">Menú</span>
+            <span>Biblioteca</span>
           </button>
-        )}
-
-        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-amber-600/30 to-amber-950/50 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-md shadow-amber-950/30">
-          <Headphones className="w-5 h-5 text-amber-300" />
-        </div>
-        <div>
-          <div className="flex items-center gap-2">
-            <h1
-              id="app-brand-title"
-              className="font-title text-base sm:text-2xl font-bold tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-100 to-amber-400 select-none"
-            >
-              {appName}
-            </h1>
-            <span className="hidden sm:inline-block text-[10px] px-1.5 py-0.5 rounded-full font-mono font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-              PRO
-            </span>
+        ) : (
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500/30 to-amber-950/60 flex items-center justify-center text-amber-400 shadow-md shadow-amber-950/40">
+              <Headphones className="w-5 h-5 text-amber-300" />
+            </div>
+            <div>
+              <h1
+                id="app-brand-title"
+                className="font-title text-base sm:text-lg font-bold tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-100 to-amber-400 leading-tight"
+              >
+                {appName}
+              </h1>
+              <p className="text-[10px] text-amber-400/80 font-medium tracking-wide">
+                Audiolibro & Lector PDF
+              </p>
+            </div>
           </div>
-          <p className="text-[10px] sm:text-[11px] text-neutral-400/90 font-serif-elegant tracking-wide truncate max-w-[130px] sm:max-w-none">
-            Voz viva para cualquier libro & PDF
-          </p>
-        </div>
+        )}
       </div>
 
-      {/* Action Controls */}
-      <div className="flex items-center gap-1.5 sm:gap-2">
-        {/* Upload Button */}
+      {/* Action Controls (Material Android Actions) */}
+      <div className="flex items-center gap-1 sm:gap-1.5">
+        {/* Hidden Android File Picker */}
         <input
           ref={fileInputRef}
           type="file"
@@ -164,6 +133,8 @@ export const Header: React.FC<HeaderProps> = ({
           onChange={handleFileInputChange}
           id="hidden-file-input"
         />
+
+        {/* Primary Action Button: Abrir PDF */}
         <button
           id="btn-upload-file"
           onClick={() => {
@@ -171,13 +142,11 @@ export const Header: React.FC<HeaderProps> = ({
             fileInputRef.current?.click();
           }}
           disabled={isLoadingFile}
-          className="flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-200 text-xs font-semibold shadow-sm transition-all active:scale-95 disabled:opacity-50"
-          title="Abrir cualquier archivo PDF"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 active:from-amber-600 active:to-amber-700 text-neutral-950 text-xs font-bold shadow-md shadow-amber-950/30 transition active:scale-95 disabled:opacity-50"
+          title="Abrir archivo PDF desde tu celular"
         >
-          <Upload className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-          <span className="hidden xs:inline sm:inline">
-            {isLoadingFile ? 'Cargando...' : 'Abrir PDF'}
-          </span>
+          <Upload className="w-3.5 h-3.5 stroke-[2.5]" />
+          <span>{isLoadingFile ? 'Cargando...' : 'Abrir PDF'}</span>
         </button>
 
         {/* Voices Menu Trigger */}
@@ -187,76 +156,46 @@ export const Header: React.FC<HeaderProps> = ({
             sounds.playVoiceChange();
             onOpenVoicesModal();
           }}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-neutral-900/80 hover:bg-neutral-800 border border-neutral-800 text-neutral-200 text-xs font-medium transition-all active:scale-95"
-          title="Cambiar voz e idioma de lectura"
+          className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-neutral-900/90 active:bg-neutral-800 text-neutral-200 text-xs font-medium transition active:scale-95"
+          title="Voz e instrumental de fondo"
         >
           <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-          <span className="hidden md:inline text-neutral-300">Voz:</span>
-          <span className="font-semibold text-amber-300 truncate max-w-[100px] sm:max-w-[125px]">
-            {selectedVoiceURI ? '🎙️ Elegida' : voicePreset === 'femenina' ? '👩 Femenina' : '🎙️ Masculina'}
+          <span className="hidden xs:inline font-semibold text-amber-300 truncate max-w-[85px] sm:max-w-[110px]">
+            {selectedVoiceURI ? 'Voz' : voicePreset === 'femenina' ? 'Femenina' : 'Masculina'}
           </span>
         </button>
 
-        {/* Ambient Instrumental Selector Trigger */}
-        <button
-          id="btn-header-ambient"
-          onClick={() => {
-            sounds.playClick(600);
-            onOpenVoicesModal();
-          }}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-xs font-medium transition-all active:scale-95 border ${
-            ambientTrack && ambientTrack !== 'none'
-              ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300 shadow-sm'
-              : 'bg-neutral-900/80 hover:bg-neutral-800 border-neutral-800 text-neutral-300'
-          }`}
-          title={
-            ambientTrack && ambientTrack !== 'none'
-              ? `Música ambiental: ${ambientTrack === 'biblioteca' ? 'Biblioteca Acústica' : 'Lluvia Serena'}`
-              : 'Elegir música instrumental de fondo'
-          }
-        >
-          <Music className={`w-3.5 h-3.5 ${ambientTrack && ambientTrack !== 'none' ? 'text-emerald-400' : 'text-neutral-400'}`} />
-          <span className="hidden lg:inline">
-            {ambientTrack === 'biblioteca'
-              ? '📖 Biblioteca'
-              : ambientTrack === 'lluvia'
-              ? '🌧️ Lluvia'
-              : 'Música'}
-          </span>
-        </button>
+        {/* Ambient Instrumental Indicator */}
+        {ambientTrack && ambientTrack !== 'none' && (
+          <button
+            id="btn-header-ambient"
+            onClick={() => {
+              sounds.playClick(600);
+              onOpenVoicesModal();
+            }}
+            className="flex items-center gap-1 px-2 py-2 rounded-xl bg-emerald-950/80 text-emerald-300 text-xs font-medium transition active:scale-95"
+            title="Música instrumental activa"
+          >
+            <Music className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden sm:inline text-[11px]">Música</span>
+          </button>
+        )}
 
-        {/* Language Selector Trigger */}
+        {/* Bookmarks Trigger */}
         <button
-          id="btn-header-language"
+          id="btn-header-bookmarks"
           onClick={() => {
-            sounds.playClick(650);
-            onOpenVoicesModal();
-          }}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-neutral-900/80 hover:bg-neutral-800 border border-neutral-800 text-neutral-200 text-xs font-medium transition-all active:scale-95"
-          title="Idioma de lectura (Predeterminado: Español)"
-        >
-          <Globe className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-          <span className="font-semibold text-amber-300 font-mono">
-            {currentLanguage.toLowerCase() === 'es' ? '🇪🇸 ES' : currentLanguage.toUpperCase()}
-          </span>
-        </button>
-
-        {/* Bookmarks Menu Trigger */}
-        <button
-          id="btn-open-bookmarks-modal"
-          onClick={() => {
-            sounds.playClick(650);
+            sounds.playClick(700);
             onOpenBookmarks();
           }}
-          className="relative flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-neutral-900/80 hover:bg-neutral-800 border border-neutral-800 text-neutral-200 text-xs font-medium transition-all active:scale-95"
-          title="Ver marcadores y favoritos"
+          className="relative p-2 sm:px-2.5 sm:py-2 rounded-xl bg-neutral-900/90 active:bg-neutral-800 text-neutral-200 text-xs font-medium transition active:scale-95"
+          title="Marcadores guardados"
         >
           <BookmarkIcon className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-          <span className="hidden sm:inline">Marcadores</span>
           {bookmarksCount > 0 && (
             <span
               id="header-bookmarks-badge"
-              className="w-4 h-4 rounded-full bg-amber-500 text-neutral-950 font-bold text-[10px] flex items-center justify-center font-mono"
+              className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-neutral-950 font-bold text-[9px] flex items-center justify-center font-mono shadow-sm"
             >
               {bookmarksCount}
             </span>
@@ -271,15 +210,14 @@ export const Header: React.FC<HeaderProps> = ({
               sounds.playClick(650);
               onOpenHistory();
             }}
-            className="relative flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-neutral-900/80 hover:bg-neutral-800 border border-neutral-800 text-neutral-200 text-xs font-medium transition-all active:scale-95"
-            title="Historial de libros reproducidos (Reloj)"
+            className="relative p-2 sm:px-2.5 sm:py-2 rounded-xl bg-neutral-900/90 active:bg-neutral-800 text-neutral-200 text-xs font-medium transition active:scale-95"
+            title="Historial de lectura reciente"
           >
             <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span className="hidden sm:inline">Historial</span>
             {historyCount > 0 && (
               <span
                 id="header-history-badge"
-                className="w-4 h-4 rounded-full bg-amber-500 text-neutral-950 font-bold text-[10px] flex items-center justify-center font-mono"
+                className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-neutral-950 font-bold text-[9px] flex items-center justify-center font-mono shadow-sm"
               >
                 {historyCount}
               </span>
@@ -287,7 +225,7 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         )}
 
-        {/* Sleep Timer Menu Trigger */}
+        {/* Sleep Timer Trigger */}
         {onOpenSleepTimer && (
           <button
             id="btn-header-sleep-timer"
@@ -295,12 +233,12 @@ export const Header: React.FC<HeaderProps> = ({
               sounds.playTick();
               onOpenSleepTimer();
             }}
-            className={`relative flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl border text-xs font-medium transition-all active:scale-95 ${
+            className={`p-2 sm:px-2.5 sm:py-2 rounded-xl text-xs font-medium transition active:scale-95 ${
               sleepTimerState?.isActive
-                ? 'bg-indigo-950/70 border-indigo-500/50 text-indigo-200 shadow-sm shadow-indigo-950/40'
-                : 'bg-neutral-900/80 hover:bg-neutral-800 border-neutral-800 text-neutral-300 hover:text-indigo-300'
+                ? 'bg-indigo-950/90 text-indigo-200 shadow-sm'
+                : 'bg-neutral-900/90 active:bg-neutral-800 text-neutral-300'
             }`}
-            title="Temporizador de apagado para dormir"
+            title="Temporizador de apagado"
           >
             <Moon
               className={`w-3.5 h-3.5 shrink-0 ${
@@ -309,138 +247,28 @@ export const Header: React.FC<HeaderProps> = ({
                   : 'text-amber-400'
               }`}
             />
-            <span className="hidden sm:inline">
-              {sleepTimerState?.isActive
-                ? sleepTimerState.mode === 'end_of_page'
-                  ? 'Fin pág.'
-                  : `${Math.ceil(sleepTimerState.remainingSeconds / 60)}m`
-                : 'Reposo'}
-            </span>
-            {sleepTimerState?.isActive && (
-              <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-ping shrink-0" />
-            )}
           </button>
         )}
 
-        {/* Background Audio Modal Trigger */}
-        {onOpenBackgroundAudio && (
-          <button
-            id="btn-header-background-audio"
-            onClick={() => {
-              sounds.playClick(650);
-              onOpenBackgroundAudio();
-            }}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-neutral-900/80 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 hover:text-emerald-300 text-xs font-medium transition-all active:scale-95"
-            title="Reproducción en segundo plano (pantalla apagada o en otras apps)"
-          >
-            <Headphones className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span className="hidden xl:inline">Segundo Plano</span>
-            {isPlaying && (
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-            )}
-          </button>
-        )}
-
-        {/* Instalar App / Modo Nativo Trigger */}
-        {onOpenInstallModal && (
-          <button
-            id="btn-header-install-app"
-            onClick={() => {
-              sounds.playClick(750);
-              onOpenInstallModal();
-            }}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl border text-xs font-semibold transition-all active:scale-95 shadow-sm ${
-              isInstalled
-                ? 'bg-emerald-950/60 border-emerald-500/50 text-emerald-300'
-                : 'bg-gradient-to-r from-amber-500/25 to-amber-600/20 hover:from-amber-500/35 hover:to-amber-600/30 border-amber-500/60 text-amber-200'
-            }`}
-            title={
-              isInstalled
-                ? 'LectorZews en Modo App Nativo'
-                : 'Instalar LectorZews como App para quitar las barras del navegador'
-            }
-          >
-            <Smartphone className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span className="hidden sm:inline">
-              {isInstalled ? 'Modo App' : 'Instalar App'}
-            </span>
-          </button>
-        )}
-
-        {/* Pantalla Completa Web Trigger */}
-        {onToggleFullscreen && (
-          <button
-            id="btn-header-toggle-fullscreen"
-            onClick={() => {
-              sounds.playClick(650);
-              onToggleFullscreen();
-            }}
-            className={`hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl border text-xs font-medium transition-all active:scale-95 ${
-              isFullscreen
-                ? 'bg-amber-500/20 border-amber-500/50 text-amber-200'
-                : 'bg-neutral-900/80 hover:bg-neutral-800 border-neutral-800 text-neutral-300'
-            }`}
-            title={isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa sin controles de navegador'}
-          >
-            <Maximize2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span>{isFullscreen ? 'Salir' : 'Pantalla Completa'}</span>
-          </button>
-        )}
-
-        {/* Android Export / Guía Trigger */}
-        {onOpenAndroidExport && (
-          <button
-            id="btn-header-android-export"
-            onClick={() => {
-              sounds.playClick(750);
-              onOpenAndroidExport();
-            }}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-gradient-to-r from-emerald-950/80 to-neutral-900/80 hover:from-emerald-900/90 hover:to-neutral-800 border border-emerald-500/40 text-emerald-300 text-xs font-semibold transition-all active:scale-95 shadow-sm shadow-emerald-950/40"
-            title="Exportar APK / AAB para Android"
-          >
-            <Smartphone className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-            <span className="hidden sm:inline">Guía Android</span>
-          </button>
-        )}
-
-        {/* Modo Inmersivo Trigger */}
-        {hasDocument && onToggleImmersiveMode && (
-          <button
-            id="btn-header-immersive-mode"
-            onClick={() => {
-              sounds.playClick(850);
-              onToggleImmersiveMode();
-            }}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-200 text-xs font-semibold transition-all active:scale-95 shadow-sm shadow-amber-950/40"
-            title="Activar Modo Inmersivo: Oculta temporalmente todos los controles para lectura total"
-          >
-            <Maximize2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span className="hidden md:inline">Modo Inmersivo</span>
-          </button>
-        )}
-
-        {/* Auto Dark Mode / Theme Toggle */}
+        {/* Dark/Light Theme Toggle */}
         <button
           id="btn-toggle-theme"
           onClick={() => {
             sounds.playTick();
             onCycleTheme();
           }}
-          className="flex items-center gap-1 p-2 sm:px-2.5 sm:py-2 rounded-xl bg-neutral-900/80 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 text-xs font-medium transition-all active:scale-95"
-          title={`Modo visual: ${getThemeLabel()} (Pulsa para alternar)`}
+          className="p-2 rounded-xl bg-neutral-900/90 active:bg-neutral-800 text-neutral-300 text-xs transition active:scale-95"
+          title="Alternar tema"
         >
           {getThemeIcon()}
-          <span className="hidden lg:inline text-[11px] text-neutral-400">{getThemeLabel()}</span>
         </button>
 
         {/* Tactile Sound Feedback Toggle */}
         <button
           id="btn-toggle-sounds"
-          onClick={() => {
-            onToggleSounds();
-          }}
-          className="p-2 sm:p-2 rounded-xl bg-neutral-900/80 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 hover:text-neutral-200 text-xs transition-all active:scale-95"
-          title={soundsEnabled ? 'Sonidos de botones activados' : 'Sonidos desactivados'}
+          onClick={onToggleSounds}
+          className="p-2 rounded-xl bg-neutral-900/90 active:bg-neutral-800 text-neutral-400 active:text-neutral-200 text-xs transition active:scale-95"
+          title={soundsEnabled ? 'Sonidos activados' : 'Sonidos desactivados'}
         >
           {soundsEnabled ? (
             <Volume2 className="w-4 h-4 text-amber-400" />

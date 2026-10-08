@@ -8,17 +8,23 @@
     font-family: 'Playfair Display', Georgia, serif;
   }
   .font-sans-clean {
-    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    font-family: 'Plus Jakarta Sans', Roboto, system-ui, -apple-system, sans-serif;
   }
 }
 
-/* Aceleración por GPU y optimización táctil para Android WebView & Modo App Nativa */
+/* Optimización pura para Aplicación Móvil Android (Sin bordes de webview, gestos fluidos) */
 * {
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
+  box-sizing: border-box;
 }
 
-html, body {
+html, body, #root, #app-root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
   overscroll-behavior-y: none;
   overscroll-behavior-x: none;
   user-select: none;
@@ -26,7 +32,19 @@ html, body {
   background-color: #0c0a09;
 }
 
-/* Soporte de notch y áreas seguras de pantalla en móviles modernos */
+/* Ocultar barras de desplazamiento de navegador web para aspecto 100% nativo de celular */
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+  width: 0px;
+  height: 0px;
+  background: transparent;
+}
+
+/* Soporte de notch y barras de navegación del sistema en Android */
 :root {
   --sat: env(safe-area-inset-top, 0px);
   --sab: env(safe-area-inset-bottom, 0px);
@@ -36,20 +54,4 @@ html, body {
 #book-page-canvas {
   transform: translateZ(0);
   -webkit-overflow-scrolling: touch;
-}
-
-/* Custom minimal scrollbar for smooth reading without clutter */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(150, 150, 150, 0.2);
-  border-radius: 9999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(150, 150, 150, 0.4);
 }

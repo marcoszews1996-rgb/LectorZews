@@ -97,7 +97,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
   return (
     <div
       id="audio-player-dock"
-      className="fixed bottom-0 left-0 right-0 z-30 px-3 sm:px-6 py-3 bg-neutral-950/85 backdrop-blur-xl border-t border-amber-900/30 text-neutral-100 shadow-2xl transition-all"
+      className="fixed bottom-0 left-0 right-0 z-30 px-3 sm:px-6 pt-2 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] bg-neutral-950/95 backdrop-blur-2xl text-neutral-100 shadow-2xl transition-all select-none"
     >
       <div className="max-w-5xl mx-auto flex flex-col gap-2">
         {/* Subtle reading ticker line */}

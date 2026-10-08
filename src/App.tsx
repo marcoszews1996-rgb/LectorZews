@@ -49,14 +49,10 @@ import { AudioPlayerBar } from './components/AudioPlayerBar';
 import { BookmarksModal } from './components/BookmarksModal';
 import { VoiceSelectorModal } from './components/VoiceSelectorModal';
 import { SleepTimerModal } from './components/SleepTimerModal';
-import { AndroidExportModal } from './components/AndroidExportModal';
 import { HistoryModal } from './components/HistoryModal';
 import { BackgroundAudioModal } from './components/BackgroundAudioModal';
 import { AdMobBanner } from './components/AdMobBanner';
 import { AdMobInterstitialModal } from './components/AdMobInterstitialModal';
-import { usePWAInstall } from './hooks/usePWAInstall';
-import { InstallAppModal } from './components/InstallAppModal';
-import { InstallAppBanner } from './components/InstallAppBanner';
 
 export default function App() {
   // Settings & Preferences
@@ -108,20 +104,8 @@ export default function App() {
   // UI Modals & Feedback
   const [isBookmarksOpen, setIsBookmarksOpen] = useState<boolean>(false);
   const [isVoicesOpen, setIsVoicesOpen] = useState<boolean>(false);
-  const [isAndroidModalOpen, setIsAndroidModalOpen] = useState<boolean>(false);
   const [isBackgroundModalOpen, setIsBackgroundModalOpen] = useState<boolean>(false);
-  const [isInstallModalOpen, setIsInstallModalOpen] = useState<boolean>(false);
 
-  // PWA & Native App Standalone Hook
-  const {
-    isInstallable,
-    isInstalled,
-    isIOS,
-    isAndroid,
-    isFullscreen,
-    install: installPWA,
-    toggleFullscreen,
-  } = usePWAInstall();
   const [pdfOpenCount, setPdfOpenCount] = useState<number>(() => getPdfOpenCount());
   const [isInterstitialOpen, setIsInterstitialOpen] = useState<boolean>(false);
   const [pendingOpenAction, setPendingOpenAction] = useState<(() => void) | null>(null);
@@ -1131,18 +1115,6 @@ export default function App() {
         <div className="absolute inset-0 bg-gradient-to-t from-neutral-950/90 via-transparent to-neutral-950/75" />
       </div>
 
-      {/* Floating PWA Install & Native App Mode Banner (Dismissible, only shown when running in browser) */}
-      {!isImmersiveMode && (
-        <InstallAppBanner
-          isInstalled={isInstalled}
-          isInstallable={isInstallable}
-          onOpenModal={() => setIsInstallModalOpen(true)}
-          onInstall={installPWA}
-          onToggleFullscreen={toggleFullscreen}
-          isFullscreen={isFullscreen}
-        />
-      )}
-
       {/* Main Header - Hidden in Immersive Mode */}
       {!isImmersiveMode && (
         <Header
@@ -1162,7 +1134,6 @@ export default function App() {
           hasDocument={!!document}
           sleepTimerState={sleepTimer}
           onOpenSleepTimer={() => setIsSleepTimerOpen(true)}
-          onOpenAndroidExport={() => setIsAndroidModalOpen(true)}
           onReturnToMenu={handleReturnToMenu}
           onOpenHistory={() => setIsHistoryOpen(true)}
           historyCount={history.length}
@@ -1170,10 +1141,6 @@ export default function App() {
           onToggleImmersiveMode={() => handleToggleImmersive()}
           onOpenBackgroundAudio={() => setIsBackgroundModalOpen(true)}
           isPlaying={isPlaying}
-          isInstalled={isInstalled}
-          onOpenInstallModal={() => setIsInstallModalOpen(true)}
-          onToggleFullscreen={toggleFullscreen}
-          isFullscreen={isFullscreen}
         />
       )}
 
@@ -1396,17 +1363,6 @@ export default function App() {
         onClearHistory={handleClearHistory}
       />
 
-      {/* Android Export & Installation Modal */}
-      <AndroidExportModal
-        isOpen={isAndroidModalOpen}
-        onClose={() => setIsAndroidModalOpen(false)}
-        appUrl={
-          typeof window !== 'undefined'
-            ? window.location.href.split('?')[0].split('#')[0]
-            : 'https://ais-pre-cxm7wkta7spmumbtfoypxx-461780136931.us-west2.run.app'
-        }
-      />
-
       {/* Background Audio Modal */}
       <BackgroundAudioModal
         isOpen={isBackgroundModalOpen}
@@ -1424,20 +1380,6 @@ export default function App() {
         onClose={handleCloseInterstitial}
         pdfTitle={interstitialBookTitle}
         isTestPreview={isInterstitialTestPreview}
-      />
-
-      {/* Standalone Native App Installation Modal */}
-      <InstallAppModal
-        isOpen={isInstallModalOpen}
-        onClose={() => setIsInstallModalOpen(false)}
-        isInstalled={isInstalled}
-        isInstallable={isInstallable}
-        isIOS={isIOS}
-        isAndroid={isAndroid}
-        isFullscreen={isFullscreen}
-        onInstall={installPWA}
-        onToggleFullscreen={toggleFullscreen}
-        onOpenAndroidExport={() => setIsAndroidModalOpen(true)}
       />
     </div>
   );
