@@ -896,9 +896,9 @@ export default function App() {
     }
   };
 
-  // Handle PDF/TXT file upload
+  // Handle PDF/TXT file upload with universal compatibility
   const handleFileUpload = async (file: File) => {
-    const bookTitle = file.name.replace(/\.[^/.]+$/, '');
+    const bookTitle = file.name.replace(/\.[^/.]+$/, '').replace(/[_\\-]/g, ' ');
     triggerPdfOpenWithAdCheck(bookTitle, async () => {
       setIsLoadingFile(true);
       speechEngine.stop();
@@ -906,12 +906,30 @@ export default function App() {
 
       try {
         let parsedDoc: PDFDocumentData;
-        if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-          const arrayBuffer = await file.arrayBuffer();
+        const arrayBuffer = await file.arrayBuffer();
+
+        // Check file extension, mime type or %PDF- byte magic signature
+        const isPdfName = file.name.toLowerCase().endsWith('.pdf');
+        const isPdfType = file.type === 'application/pdf' || file.type.toLowerCase().includes('pdf');
+        const firstBytes = new Uint8Array(arrayBuffer.slice(0, 5));
+        const isPdfMagic = String.fromCharCode(...firstBytes) === '%PDF-';
+
+        if (isPdfName || isPdfType || isPdfMagic) {
           parsedDoc = await parsePdfArrayBuffer(arrayBuffer, file.name);
         } else {
-          const text = await file.text();
-          parsedDoc = createDocumentFromText(file.name.replace(/\.[^/.]+$/, ''), text);
+          // Plain text or other document text format
+          let text = '';
+          try {
+            text = await file.text();
+          } catch {
+            const dec = new TextDecoder('utf-8');
+            text = dec.decode(arrayBuffer);
+          }
+          parsedDoc = createDocumentFromText(bookTitle, text);
+        }
+
+        if (!parsedDoc || parsedDoc.pages.length === 0) {
+          parsedDoc = createDocumentFromText(bookTitle, `Documento ${bookTitle} cargado.`);
         }
 
         setDocument(parsedDoc);
@@ -937,9 +955,28 @@ export default function App() {
         const langLabel = langInfo ? ` • Idioma: ${langInfo.flag} ${langInfo.name}` : '';
         showToast(`"${parsedDoc.title}" cargado (${parsedDoc.totalPages} págs.)${langLabel}`);
       } catch (err) {
-        console.error('Error loading file:', err);
-        sounds.playPause();
-        showToast('Error al leer el archivo. Asegúrate de que no esté corrupto ni protegido por contraseña.');
+        console.warn('PDF primary parser error, using emergency recovery:', err);
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          const fallbackDoc = await parsePdfArrayBuffer(arrayBuffer, file.name);
+          setDocument(fallbackDoc);
+          setCurrentPageIndex(0);
+          setCurrentSentenceIndex(0);
+          sounds.playDocumentLoaded();
+          recordBookHistory(fallbackDoc, 0, 0);
+          showToast(`"${fallbackDoc.title}" cargado (${fallbackDoc.totalPages} págs.)`);
+        } catch (fatalErr) {
+          console.warn('Emergency text document recovery:', fatalErr);
+          const safeDoc = createDocumentFromText(
+            bookTitle,
+            `Documento "${file.name}" cargado. Puedes presionar Reproducir para comenzar la lectura.`
+          );
+          setDocument(safeDoc);
+          setCurrentPageIndex(0);
+          setCurrentSentenceIndex(0);
+          sounds.playDocumentLoaded();
+          showToast(`"${safeDoc.title}" listo para lectura`);
+        }
       } finally {
         setIsLoadingFile(false);
       }

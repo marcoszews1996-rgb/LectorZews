@@ -159,7 +159,7 @@ export const Header: React.FC<HeaderProps> = ({
         <input
           ref={fileInputRef}
           type="file"
-          accept=".pdf,.txt,application/pdf,text/plain"
+          accept=".pdf,.txt,.text,application/pdf,application/x-pdf,text/plain,application/octet-stream,*/*"
           className="hidden"
           onChange={handleFileInputChange}
           id="hidden-file-input"

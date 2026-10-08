@@ -35,6 +35,24 @@
       }, true);
     </script>
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-app-pub-5450514125268915" crossorigin="anonymous"></script>
+    <!-- Polyfills for modern PDF.js methods in older mobile WebViews & Chrome -->
+    <script>
+      if (!window.Promise || !Promise.try) {
+        Promise.try = function(fn, ...args) {
+          return new Promise(function(resolve) { resolve(fn(...args)); });
+        };
+      }
+      if (typeof Uint8Array !== 'undefined' && !Uint8Array.prototype.toHex) {
+        Uint8Array.prototype.toHex = function() {
+          var hex = '';
+          for (var i = 0; i < this.length; i++) {
+            var b = this[i].toString(16);
+            hex += (b.length === 1 ? '0' : '') + b;
+          }
+          return hex;
+        };
+      }
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;800&family=Playfair+Display:ital,wght@0,600;0,800;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
