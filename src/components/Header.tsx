@@ -2,7 +2,6 @@ import React, { useRef } from 'react';
 import { ThemeMode, VoicePresetId, SleepTimerState, AmbientTrackId } from '../types';
 import { sounds } from '../utils/soundEffects';
 import {
-  Bookmark as BookmarkIcon,
   Volume2,
   VolumeX,
   Sun,
@@ -21,8 +20,6 @@ interface HeaderProps {
   onCycleTheme: () => void;
   soundsEnabled: boolean;
   onToggleSounds: () => void;
-  onOpenBookmarks: () => void;
-  bookmarksCount: number;
   voicePreset: VoicePresetId;
   selectedVoiceURI?: string | null;
   ambientTrack?: AmbientTrackId;
@@ -48,8 +45,6 @@ export const Header: React.FC<HeaderProps> = ({
   onCycleTheme,
   soundsEnabled,
   onToggleSounds,
-  onOpenBookmarks,
-  bookmarksCount,
   voicePreset,
   selectedVoiceURI,
   ambientTrack,
@@ -97,7 +92,7 @@ export const Header: React.FC<HeaderProps> = ({
               onReturnToMenu();
             }}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 active:scale-95 text-amber-200 text-xs font-semibold transition shrink-0"
-            title="Volver a la biblioteca"
+            title="Volver a la biblioteca (el audio sigue sonando en segundo plano)"
           >
             <ArrowLeft className="w-4 h-4 text-amber-300" />
             <span>Biblioteca</span>
@@ -180,27 +175,6 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="hidden sm:inline text-[11px]">Música</span>
           </button>
         )}
-
-        {/* Bookmarks Trigger */}
-        <button
-          id="btn-header-bookmarks"
-          onClick={() => {
-            sounds.playClick(700);
-            onOpenBookmarks();
-          }}
-          className="relative p-2 sm:px-2.5 sm:py-2 rounded-xl bg-neutral-900/90 active:bg-neutral-800 text-neutral-200 text-xs font-medium transition active:scale-95"
-          title="Marcadores guardados"
-        >
-          <BookmarkIcon className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-          {bookmarksCount > 0 && (
-            <span
-              id="header-bookmarks-badge"
-              className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-neutral-950 font-bold text-[9px] flex items-center justify-center font-mono shadow-sm"
-            >
-              {bookmarksCount}
-            </span>
-          )}
-        </button>
 
         {/* History Clock Trigger */}
         {onOpenHistory && (

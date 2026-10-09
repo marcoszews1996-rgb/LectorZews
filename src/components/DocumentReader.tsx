@@ -6,7 +6,6 @@ import {
   FileText,
   Upload,
   BookOpen,
-  Bookmark as BookmarkIcon,
   Sparkles,
   ArrowRight,
   ArrowLeft,
@@ -17,15 +16,14 @@ import {
 
 interface DocumentReaderProps {
   document: PDFDocumentData | null;
+  currentView?: 'library' | 'reader';
   currentPageIndex: number;
   currentSentenceIndex: number;
   isPlaying: boolean;
   onSentenceClick: (sentenceIndex: number) => void;
-  onBookmarkSentence: (sentenceIndex: number) => void;
-  bookmarkedSentencesOnPage: Set<number>;
   onSelectSampleBook: (sampleId: string) => void;
   onUploadClick: () => void;
-  isDragging: boolean;
+  isDragging?: boolean;
   fontSize: 'sm' | 'md' | 'lg' | 'xl';
   onReturnToMenu?: () => void;
   history?: BookHistoryItem[];
@@ -37,11 +35,11 @@ interface DocumentReaderProps {
 
 export const DocumentReader: React.FC<DocumentReaderProps> = ({
   document,
+  currentView = 'library',
   currentPageIndex,
   currentSentenceIndex,
   isPlaying,
   onSentenceClick,
-  bookmarkedSentencesOnPage,
   onSelectSampleBook,
   onUploadClick,
   fontSize,
@@ -57,7 +55,7 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
 
   // Auto-scroll active sentence smoothly only when it nears or leaves viewport boundaries
   useEffect(() => {
-    if (activeSentenceRef.current && isPlaying) {
+    if (activeSentenceRef.current && isPlaying && currentView === 'reader') {
       const el = activeSentenceRef.current;
       const rect = el.getBoundingClientRect();
       const viewportHeight = window.innerHeight || window.document.documentElement.clientHeight;
@@ -72,7 +70,7 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
         });
       }
     }
-  }, [currentSentenceIndex, currentPageIndex, isPlaying]);
+  }, [currentSentenceIndex, currentPageIndex, isPlaying, currentView]);
 
   const getFontSizeClass = () => {
     switch (fontSize) {
@@ -88,12 +86,12 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
     }
   };
 
-  // Android Native Mobile Home Screen (When no book is open)
-  if (!document) {
+  // Android Native Mobile Home Screen (Library dashboard)
+  if (!document || currentView === 'library') {
     return (
       <div
         id="empty-state-welcome"
-        className="relative z-10 w-full px-4 sm:px-6 py-6 sm:py-10 flex flex-col items-center text-center animate-fadeIn select-none"
+        className="relative z-10 w-full px-4 sm:px-6 py-6 sm:py-10 flex flex-col items-center text-center animate-fadeIn select-none pb-36"
       >
         {/* Android App Header Pill */}
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 text-amber-300 text-xs font-semibold mb-3 backdrop-blur-md">
@@ -240,7 +238,7 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
     );
   }
 
-  // Active Document Reader (100% Android Edge-to-Edge - NO WEBVIEW BORDERS)
+  // Active Document Reader (100% Android Edge-to-Edge)
   const currentPage = document.pages[currentPageIndex] || {
     pageNumber: currentPageIndex + 1,
     text: '',
@@ -301,7 +299,7 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
         </div>
       )}
 
-      {/* Edge-to-Edge Pure Android Reading Canvas (NO BORDERS, NO BOX SHADOWS) */}
+      {/* Edge-to-Edge Pure Android Reading Canvas (NO BORDERS, NO MARCADORES) */}
       <div
         id="book-page-canvas"
         className="w-full py-2 transition-all select-text"
@@ -321,7 +319,6 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
         <div className={`font-serif-elegant ${getFontSizeClass()} text-neutral-100 leading-relaxed space-y-1`}>
           {currentPage.sentences.map((sentence, sIdx) => {
             const isCurrent = sIdx === currentSentenceIndex;
-            const isBookmarked = bookmarkedSentencesOnPage.has(sIdx);
 
             return (
               <span
@@ -336,11 +333,8 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
                   isCurrent
                     ? 'bg-amber-400/30 text-amber-100 font-semibold shadow-sm'
                     : 'active:bg-neutral-800/80 hover:text-white'
-                } ${isBookmarked ? 'underline decoration-amber-400 decoration-2' : ''}`}
+                }`}
               >
-                {isBookmarked && (
-                  <BookmarkIcon className="inline w-3.5 h-3.5 text-amber-400 mr-1 fill-amber-400/40 align-middle" />
-                )}
                 {sentence}{' '}
               </span>
             );

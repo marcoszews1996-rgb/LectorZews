@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Maximize2, Minimize2, Play, Pause } from 'lucide-react';
-import libraryPuppetBg from './assets/images/library_story_doll_1791287871877.jpg';
+import libraryPuppetBg from './assets/images/library_doll_mic_1791575639917.jpg';
 import {
   Bookmark,
   FavoriteItem,
@@ -46,7 +46,7 @@ import {
 import { Header } from './components/Header';
 import { DocumentReader } from './components/DocumentReader';
 import { AudioPlayerBar } from './components/AudioPlayerBar';
-import { BookmarksModal } from './components/BookmarksModal';
+import { MiniAudioPlayer } from './components/MiniAudioPlayer';
 import { VoiceSelectorModal } from './components/VoiceSelectorModal';
 import { SleepTimerModal } from './components/SleepTimerModal';
 import { HistoryModal } from './components/HistoryModal';
@@ -76,6 +76,7 @@ export default function App() {
 
   // Document & Reading State
   const [document, setDocument] = useState<PDFDocumentData | null>(null);
+  const [currentView, setCurrentView] = useState<'library' | 'reader'>('library');
   const [currentPageIndex, setCurrentPageIndex] = useState<number>(0);
   const [currentSentenceIndex, setCurrentSentenceIndex] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -856,6 +857,7 @@ export default function App() {
         speechEngine.stop();
         setIsPlaying(false);
         setDocument(sample.doc);
+        setCurrentView('reader');
         setCurrentPageIndex(0);
         setCurrentSentenceIndex(0);
         const bookLang = sample.language || DEFAULT_LANGUAGE;
@@ -917,6 +919,7 @@ export default function App() {
         }
 
         setDocument(parsedDoc);
+        setCurrentView('reader');
         setCurrentPageIndex(0);
         setCurrentSentenceIndex(0);
 
@@ -944,6 +947,7 @@ export default function App() {
           const arrayBuffer = await file.arrayBuffer();
           const fallbackDoc = await parsePdfArrayBuffer(arrayBuffer, file.name);
           setDocument(fallbackDoc);
+          setCurrentView('reader');
           setCurrentPageIndex(0);
           setCurrentSentenceIndex(0);
           sounds.playDocumentLoaded();
@@ -956,6 +960,7 @@ export default function App() {
             `Documento "${file.name}" cargado. Puedes presionar Reproducir para comenzar la lectura.`
           );
           setDocument(safeDoc);
+          setCurrentView('reader');
           setCurrentPageIndex(0);
           setCurrentSentenceIndex(0);
           sounds.playDocumentLoaded();
@@ -967,8 +972,19 @@ export default function App() {
     });
   };
 
-  // Return to Menu / Library View (Boton de volver al menú)
+  // Return to Menu / Library View (Audio stays playing in background with Mini Player)
   const handleReturnToMenu = () => {
+    setIsImmersiveMode(false);
+    if (document) {
+      recordBookHistory(document, currentPageIndex, currentSentenceIndex);
+    }
+    setCurrentView('library');
+    sounds.playClick(450);
+    showToast('Has vuelto a la biblioteca • Audio activo en segundo plano');
+  };
+
+  // Close Document & Stop Playback completely
+  const handleCloseDocument = () => {
     speechEngine.stop();
     setIsPlaying(false);
     setIsPaused(false);
@@ -978,14 +994,16 @@ export default function App() {
       recordBookHistory(document, currentPageIndex, currentSentenceIndex);
     }
     setDocument(null);
+    setCurrentView('library');
     sounds.playClick(450);
-    showToast('Has vuelto al menú principal y biblioteca de libros');
+    showToast('Lectura finalizada');
   };
 
   // Resume Book from Playback History
   const handleResumeBookFromHistory = (item: BookHistoryItem) => {
     // If currently active doc matches
     if (document && (document.fileName === item.fileName || document.title === item.title)) {
+      setCurrentView('reader');
       const targetPage = Math.min(document.totalPages - 1, Math.max(0, item.lastPageIndex));
       const targetSentence = Math.max(0, item.lastSentenceIndex || 0);
       setCurrentPageIndex(targetPage);
@@ -1007,6 +1025,7 @@ export default function App() {
       );
       if (sample) {
         setDocument(sample.doc);
+        setCurrentView('reader');
         const targetPage = Math.min(sample.doc.totalPages - 1, Math.max(0, item.lastPageIndex));
         const targetSentence = Math.max(0, item.lastSentenceIndex || 0);
         setCurrentPageIndex(targetPage);
@@ -1099,20 +1118,20 @@ export default function App() {
           src={libraryPuppetBg}
           alt="Biblioteca gigante con un micrófono en medio y un muñeco de tela leyendo un libro con ese micrófono"
           referrerPolicy="no-referrer"
-          className={`w-full h-full object-cover object-center transform scale-105 transition-all duration-700 ${
-            effectiveIsDark ? 'brightness-[0.50] contrast-[1.06]' : 'brightness-[0.75] contrast-[1.02]'
+          className={`w-full h-full object-cover object-center transform transition-all duration-700 ${
+            effectiveIsDark ? 'brightness-[0.65] contrast-[1.05]' : 'brightness-[0.85] contrast-[1.02]'
           }`}
           loading="eager"
         />
-        {/* Warm golden vignette & subtle dark overlay for crisp legibility and low battery consumption */}
+        {/* Subtle warm ambient overlay for crisp legibility and battery efficiency */}
         <div
           className={`absolute inset-0 transition-colors duration-500 ${
             effectiveIsDark
-              ? 'bg-neutral-950/65 mix-blend-multiply'
+              ? 'bg-neutral-950/50 mix-blend-multiply'
               : 'bg-amber-950/15 mix-blend-soft-light'
           }`}
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-neutral-950/90 via-transparent to-neutral-950/75" />
+        <div className="absolute inset-0 bg-gradient-to-t from-neutral-950/90 via-neutral-950/20 to-neutral-950/75" />
       </div>
 
       {/* Main Header - Hidden in Immersive Mode */}
@@ -1123,8 +1142,6 @@ export default function App() {
           onCycleTheme={handleCycleTheme}
           soundsEnabled={soundsEnabled}
           onToggleSounds={handleToggleSounds}
-          onOpenBookmarks={() => setIsBookmarksOpen(true)}
-          bookmarksCount={bookmarks.length}
           voicePreset={voicePreset}
           selectedVoiceURI={selectedVoiceURI}
           ambientTrack={ambientTrack}
@@ -1210,15 +1227,11 @@ export default function App() {
       <main className="flex-1 relative z-10 overflow-y-auto">
         <DocumentReader
           document={document}
+          currentView={currentView}
           currentPageIndex={currentPageIndex}
           currentSentenceIndex={currentSentenceIndex}
           isPlaying={isPlaying}
           onSentenceClick={handleSentenceClick}
-          onBookmarkSentence={(sIdx) => {
-            setCurrentSentenceIndex(sIdx);
-            handleAddCurrentBookmark();
-          }}
-          bookmarkedSentencesOnPage={bookmarkedSentencesOnPage}
           onSelectSampleBook={handleSelectSampleBook}
           onUploadClick={() => {
             const input = window.document.getElementById('hidden-file-input') as HTMLInputElement;
@@ -1241,7 +1254,9 @@ export default function App() {
           id="admob-banner-dock"
           className={`w-full z-20 pointer-events-none transition-all ${
             document
-              ? 'fixed bottom-[78px] sm:bottom-[76px] left-0 right-0'
+              ? currentView === 'library'
+                ? 'fixed bottom-[68px] sm:bottom-[64px] left-0 right-0'
+                : 'fixed bottom-[78px] sm:bottom-[76px] left-0 right-0'
               : 'relative mt-4 mb-6'
           }`}
         >
@@ -1254,8 +1269,29 @@ export default function App() {
         </div>
       )}
 
-      {/* Minimalist Rounded Audio Player Dock - Hidden in Immersive Mode */}
-      {!isImmersiveMode && document && (
+      {/* Mini Audio Player Dock when browsing library while audio plays in background */}
+      {!isImmersiveMode && document && currentView === 'library' && (
+        <MiniAudioPlayer
+          title={document.title}
+          currentPage={currentPageIndex + 1}
+          totalPages={document.totalPages}
+          currentSentence={currentSentenceIndex}
+          totalSentencesInPage={document.pages[currentPageIndex]?.sentences.length || 0}
+          activeSentenceText={activeSentenceText}
+          isPlaying={isPlaying}
+          onPlayPause={handlePlayPause}
+          onPrevSentence={handlePrevSentence}
+          onNextSentence={handleNextSentence}
+          onExpand={() => {
+            sounds.playClick(600);
+            setCurrentView('reader');
+          }}
+          onClose={handleCloseDocument}
+        />
+      )}
+
+      {/* Minimalist Rounded Audio Player Dock - in Reader View */}
+      {!isImmersiveMode && document && currentView === 'reader' && (
         <AudioPlayerBar
           isPlaying={isPlaying}
           isPaused={isPaused}
@@ -1271,8 +1307,6 @@ export default function App() {
           totalSentencesInPage={document.pages[currentPageIndex]?.sentences.length || 0}
           currentSpeed={speed}
           onSpeedChange={handleSpeedChange}
-          onAddBookmark={() => handleAddCurrentBookmark()}
-          isCurrentSentenceBookmarked={isCurrentSentenceBookmarked}
           activeSentenceText={activeSentenceText}
           sleepTimerState={sleepTimer}
           onOpenSleepTimer={() => setIsSleepTimerOpen(true)}
@@ -1298,24 +1332,6 @@ export default function App() {
           <span>{toastMessage}</span>
         </div>
       )}
-
-      {/* Bookmarks and Favorites Dedicated Modal */}
-      <BookmarksModal
-        isOpen={isBookmarksOpen}
-        onClose={() => setIsBookmarksOpen(false)}
-        bookmarks={bookmarks}
-        favorites={favorites}
-        currentDoc={document}
-        currentPage={currentPageIndex + 1}
-        currentSentence={currentSentenceIndex}
-        onJumpToBookmark={handleJumpToBookmark}
-        onDeleteBookmark={handleDeleteBookmark}
-        onUpdateNote={handleUpdateBookmarkNote}
-        onAddCurrentBookmark={handleAddCurrentBookmark}
-        onSelectFavorite={handleSelectFavorite}
-        onToggleFavoriteDoc={handleToggleFavoriteDoc}
-        isCurrentDocFavorite={document ? isFavorite(document.fileName) : false}
-      />
 
       {/* Voices & Ambient Instrumentals Modal */}
       <VoiceSelectorModal

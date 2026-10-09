@@ -9,17 +9,13 @@ import {
   SkipForward,
   ChevronLeft,
   ChevronRight,
-  Bookmark as BookmarkIcon,
-  BookmarkCheck,
-  RotateCcw,
-  Sparkles,
-  Moon,
   Activity,
   ArrowLeft,
   Clock,
   Maximize2,
   Headphones,
   Music,
+  Moon,
 } from 'lucide-react';
 
 interface AudioPlayerBarProps {
@@ -37,8 +33,6 @@ interface AudioPlayerBarProps {
   totalSentencesInPage: number;
   currentSpeed: number;
   onSpeedChange: (speed: number) => void;
-  onAddBookmark: () => void;
-  isCurrentSentenceBookmarked: boolean;
   activeSentenceText: string;
   sleepTimerState?: SleepTimerState;
   onOpenSleepTimer?: () => void;
@@ -68,8 +62,6 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
   totalSentencesInPage,
   currentSpeed,
   onSpeedChange,
-  onAddBookmark,
-  isCurrentSentenceBookmarked,
   activeSentenceText,
   sleepTimerState,
   onOpenSleepTimer,
@@ -77,7 +69,6 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
   onToggleSmartRhythm,
   onReturnToMenu,
   onOpenHistory,
-  isImmersiveMode = false,
   onToggleImmersiveMode,
   onOpenBackgroundAudio,
   onOpenVoicesModal,
@@ -152,10 +143,10 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
                   onReturnToMenu();
                 }}
                 className="p-1.5 sm:px-2.5 sm:py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 text-xs font-semibold flex items-center gap-1.5 transition-all active:scale-95 shrink-0"
-                title="Volver al menú de libros y biblioteca"
+                title="Volver al menú de libros y biblioteca (sigue sonando)"
               >
                 <ArrowLeft className="w-4 h-4 text-amber-300" />
-                <span className="hidden md:inline">Menú</span>
+                <span className="hidden md:inline">Biblioteca</span>
               </button>
             )}
 
@@ -192,9 +183,9 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
             </button>
           </div>
 
-          {/* Center: Minimalist Rounded Play/Pause and Skip buttons */}
+          {/* Center: Play/Pause, Rewind and Fast Forward buttons */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Previous Sentence */}
+            {/* Previous Sentence (Retroceder audio) */}
             <button
               id="btn-prev-sentence"
               onClick={() => {
@@ -228,7 +219,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
               )}
             </button>
 
-            {/* Next Sentence */}
+            {/* Next Sentence (Adelantar audio) */}
             <button
               id="btn-next-sentence"
               onClick={() => {
@@ -236,13 +227,13 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
                 onNextSentence();
               }}
               className="p-2 sm:p-2.5 rounded-full bg-neutral-900/90 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 hover:text-amber-300 transition-all active:scale-95"
-              title="Avanzar a la siguiente frase"
+              title="Adelantar a la siguiente frase"
             >
               <SkipForward className="w-4 h-4" />
             </button>
           </div>
 
-          {/* Right: Speed Controls & Instant Bookmark Button */}
+          {/* Right: Speed Controls, Sleep Timer, Voices */}
           <div className="flex items-center gap-1.5 sm:gap-2">
             <div className="hidden sm:block">
               <SpeedControls currentSpeed={currentSpeed} onSpeedChange={onSpeedChange} compact />
@@ -258,14 +249,14 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
                     currentSpeed === 1.0 ? 1.25 : currentSpeed === 1.25 ? 1.5 : currentSpeed === 1.5 ? 2.0 : currentSpeed === 2.0 ? 0.75 : 1.0;
                   onSpeedChange(nextSpeed);
                 }}
-                className="px-2 py-1.5 rounded-xl bg-neutral-900 border border-neutral-800 text-xs font-mono font-bold text-amber-400"
+                className="px-2 py-1.5 rounded-xl bg-neutral-900/80 border border-neutral-800 text-xs font-mono text-amber-300 font-semibold"
                 title="Cambiar velocidad"
               >
                 {currentSpeed}x
               </button>
             </div>
 
-            {/* Smart Rhythm (Ritmo Inteligente) Button */}
+            {/* Smart Rhythm Modulation Toggle */}
             {onToggleSmartRhythm && (
               <button
                 id="btn-player-smart-rhythm"
@@ -335,7 +326,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
               </button>
             )}
 
-            {/* History Clock Button */}
+            {/* Reading Playback History (Reloj) */}
             {onOpenHistory && (
               <button
                 id="btn-player-history"
@@ -344,7 +335,7 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
                   onOpenHistory();
                 }}
                 className="p-2 sm:px-2.5 sm:py-2 rounded-xl bg-neutral-900/80 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 hover:text-amber-300 text-xs font-medium flex items-center gap-1.5 transition-all active:scale-95"
-                title="Ver historial de libros reproducidos (Reloj)"
+                title="Historial de libros reproducidos"
               >
                 <Clock className="w-4 h-4 text-amber-400" />
                 <span className="hidden xl:inline text-[11px]">Historial</span>
@@ -386,34 +377,6 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
                 </span>
               </button>
             )}
-
-            {/* Bookmark Current Sentence Button */}
-            <button
-              id="btn-quick-bookmark"
-              onClick={() => {
-                sounds.playPlay();
-                onAddBookmark();
-              }}
-              className={`p-2 sm:px-2.5 sm:py-2 rounded-xl border text-xs font-medium flex items-center gap-1.5 transition-all active:scale-95 ${
-                isCurrentSentenceBookmarked
-                  ? 'bg-amber-500/20 border-amber-400 text-amber-300 shadow-sm shadow-amber-500/10'
-                  : 'bg-neutral-900/80 hover:bg-neutral-800 border-neutral-800 text-neutral-300 hover:text-amber-300'
-              }`}
-              title={
-                isCurrentSentenceBookmarked
-                  ? 'Marcador guardado en esta página'
-                  : 'Añadir marcador a este punto'
-              }
-            >
-              {isCurrentSentenceBookmarked ? (
-                <BookmarkCheck className="w-4 h-4 text-amber-400 fill-amber-400/30" />
-              ) : (
-                <BookmarkIcon className="w-4 h-4" />
-              )}
-              <span className="hidden md:inline">
-                {isCurrentSentenceBookmarked ? 'Marcado' : 'Marcar'}
-              </span>
-            </button>
 
             {/* Modo Inmersivo Button */}
             {onToggleImmersiveMode && (
