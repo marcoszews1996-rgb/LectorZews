@@ -426,7 +426,14 @@ export default function App() {
         isSequential,
         smartRhythm: currSmartRhythm,
         onStart: () => {
-          // onStart
+          setCurrentPageIndex(pageIdx);
+          setCurrentSentenceIndex(sentenceIdx);
+          backgroundAudioService.updateMetadata({
+            title: document.title,
+            page: pageIdx + 1,
+            totalPages: document.totalPages,
+            sentenceText: sentence,
+          });
         },
         onEnd: () => {
           // onEnd -> advance to next sentence smoothly
@@ -574,7 +581,36 @@ export default function App() {
     });
   };
 
+  // Intercept Android hardware/gesture Back navigation to stay in app and keep playing in background
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    if (!window.history.state || window.history.state.app !== 'lectorzews') {
+      window.history.replaceState({ app: 'lectorzews', view: currentView }, '');
+    }
+
+    const handlePopState = (e: PopStateEvent) => {
+      // If user was in reader view and pressed Back on their Android device:
+      if (currentView === 'reader') {
+        e.preventDefault?.();
+        handleReturnToMenu();
+        window.history.pushState({ app: 'lectorzews', view: 'library' }, '');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [currentView]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (currentView === 'reader') {
+      window.history.pushState({ app: 'lectorzews', view: 'reader' }, '');
+    }
+  }, [currentView]);
+
   const handlePlayPause = () => {
+    backgroundAudioService.unlock();
     if (!document) {
       // Pick first sample book ("El Quijote") and start reading immediately!
       handleSelectSampleBook('quijote', true);
@@ -592,11 +628,13 @@ export default function App() {
   };
 
   const handleSentenceClick = (sentenceIdx: number) => {
+    backgroundAudioService.unlock();
     setCurrentSentenceIndex(sentenceIdx);
     speakSentence(currentPageIndex, sentenceIdx);
   };
 
   const handlePrevSentence = () => {
+    backgroundAudioService.unlock();
     if (!document) return;
     if (currentSentenceIndex > 0) {
       const nextIdx = currentSentenceIndex - 1;
@@ -617,6 +655,7 @@ export default function App() {
   };
 
   const handleNextSentence = () => {
+    backgroundAudioService.unlock();
     if (!document) return;
     const page = document.pages[currentPageIndex];
     if (page && currentSentenceIndex + 1 < page.sentences.length) {
@@ -1148,7 +1187,7 @@ export default function App() {
           onOpenVoicesModal={() => setIsVoicesOpen(true)}
           onFileUpload={handleFileUpload}
           isLoadingFile={isLoadingFile}
-          hasDocument={!!document}
+          hasDocument={!!document && currentView === 'reader'}
           sleepTimerState={sleepTimer}
           onOpenSleepTimer={() => setIsSleepTimerOpen(true)}
           onReturnToMenu={handleReturnToMenu}

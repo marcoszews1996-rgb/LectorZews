@@ -1,36 +1,81 @@
 /**
  * BackgroundAudioService:
- * Mantiene la sesión de audio activa en Android y navegadores móviles para que la lectura
- * continúe sin interrupciones con la pantalla bloqueada o en segundo plano, exactamente
- * como un reproductor de música de Android (Spotify, Audible, YouTube Music).
+ * Mantiene la sesión de audio activa en Android (TWA, PWA y navegadores móviles) para que la lectura
+ * continúe sin interrupciones con la pantalla bloqueada, apagada o en segundo plano, exactamente
+ * como un reproductor de música nativo de Android (Spotify, Audible, YouTube Music).
  */
 
 class BackgroundAudioService {
   private audio: HTMLAudioElement | null = null;
+  private audioContext: AudioContext | null = null;
+  private oscillatorNode: OscillatorNode | null = null;
+  private gainNode: GainNode | null = null;
   private wakeLockSentinel: any = null;
   private isBackgroundActive = false;
+  private worker: Worker | null = null;
+  private heartbeatListeners: Set<() => void> = new Set();
   private carrierBlobUrl: string | null = null;
+  private isUnlocked = false;
 
   constructor() {
     if (typeof window !== 'undefined') {
       this.initCarrierAudio();
+      this.initWebWorkerHeartbeat();
+      this.setupGlobalUnlockListener();
     }
   }
 
   /**
-   * Genera en memoria un archivo WAV continuo de 2 segundos con modulación PCM subaudible (1/32768)
-   * Esto obliga al motor de audio del sistema operativo Android (AudioFlinger / MediaSession)
-   * a clasificar la app como un reproductor de música activo en primer plano, evitando
-   * que el sistema suspenda el hilo de JavaScript o detenga la voz al apagar la pantalla.
+   * Desbloquea de forma proactiva el AudioContext y el elemento HTML5 Audio
+   * en el primer toque/clic del usuario, evitando restricciones de autoplay en Android.
+   */
+  private setupGlobalUnlockListener() {
+    if (typeof window === 'undefined') return;
+
+    const handleUnlock = () => {
+      this.unlock();
+      window.removeEventListener('click', handleUnlock);
+      window.removeEventListener('touchstart', handleUnlock);
+      window.removeEventListener('keydown', handleUnlock);
+    };
+
+    window.addEventListener('click', handleUnlock, { passive: true });
+    window.addEventListener('touchstart', handleUnlock, { passive: true });
+    window.addEventListener('keydown', handleUnlock, { passive: true });
+  }
+
+  public unlock() {
+    if (this.isUnlocked) return;
+    this.isUnlocked = true;
+
+    // 1. Desbloquear Web Audio API
+    this.initAudioContext();
+    if (this.audioContext && this.audioContext.state === 'suspended') {
+      this.audioContext.resume().catch(() => {});
+    }
+
+    // 2. Precargar audio carrier
+    if (this.audio) {
+      this.audio.play().then(() => {
+        if (!this.isBackgroundActive) {
+          this.audio?.pause();
+        }
+      }).catch(() => {});
+    }
+  }
+
+  /**
+   * Genera un búfer continuo PCM WAV con modulación acústica de baja frecuencia (55Hz a ganancia 0.005)
+   * que registra actividad legítima ante el subsistema AudioFlinger de Android.
    */
   private initCarrierAudio() {
     try {
       const sampleRate = 22050;
-      const numSamples = sampleRate * 2; // 2 segundos
+      const numSamples = sampleRate * 3; // 3 segundos continuos
       const buffer = new ArrayBuffer(44 + numSamples * 2);
       const view = new DataView(buffer);
 
-      // Cabecera RIFF/WAVE
+      // Cabecera RIFF/WAVE estándar
       view.setUint32(0, 0x52494646, false); // "RIFF"
       view.setUint32(4, 36 + numSamples * 2, true);
       view.setUint32(8, 0x57415645, false); // "WAVE"
@@ -45,10 +90,12 @@ class BackgroundAudioService {
       view.setUint32(36, 0x64617461, false); // "data"
       view.setUint32(40, numSamples * 2, true);
 
-      // Muestras alternadas sub-audibles
+      // Onda sinusoidal suave de 55 Hz (tono casi imperceptible que mantiene el DAC abierto)
       let offset = 44;
+      const freq = 55;
       for (let i = 0; i < numSamples; i++) {
-        view.setInt16(offset, i % 2 === 0 ? 1 : -1, true);
+        const sample = Math.sin((2 * Math.PI * freq * i) / sampleRate) * 12; // Amplitud muy baja
+        view.setInt16(offset, Math.floor(sample), true);
         offset += 2;
       }
 
@@ -58,13 +105,12 @@ class BackgroundAudioService {
       this.audio = new Audio();
       this.audio.src = this.carrierBlobUrl;
       this.audio.loop = true;
-      this.audio.volume = 0.05;
+      this.audio.volume = 0.08;
       this.audio.preload = 'auto';
       (this.audio as any).playsInline = true;
 
       this.audio.onerror = () => {
         if (this.audio) {
-          // Fallback en Base64
           this.audio.src =
             'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==';
         }
@@ -74,21 +120,119 @@ class BackgroundAudioService {
     }
   }
 
-  public async startBackgroundPlayback() {
-    if (!this.audio) return;
-    try {
-      if (this.audio.paused) {
-        await this.audio.play();
-      }
-      this.isBackgroundActive = true;
+  /**
+   * Inicializa un AudioContext persistente con oscilador inaudible.
+   * Esto retiene AudioFocus de Android de manera constante.
+   */
+  private initAudioContext() {
+    if (typeof window === 'undefined') return;
+    if (!this.audioContext) {
+      try {
+        const AudioCtx =
+          window.AudioContext ||
+          (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        if (AudioCtx) {
+          this.audioContext = new AudioCtx();
+          this.gainNode = this.audioContext.createGain();
+          this.gainNode.gain.setValueAtTime(0.001, this.audioContext.currentTime);
 
-      if ('mediaSession' in navigator) {
-        navigator.mediaSession.playbackState = 'playing';
+          this.oscillatorNode = this.audioContext.createOscillator();
+          this.oscillatorNode.type = 'sine';
+          this.oscillatorNode.frequency.setValueAtTime(40, this.audioContext.currentTime); // 40 Hz inaudible
+          this.oscillatorNode.connect(this.gainNode);
+          this.gainNode.connect(this.audioContext.destination);
+          this.oscillatorNode.start();
+        }
+      } catch (e) {
+        console.warn('Error inicializando WebAudio context:', e);
       }
-      await this.requestWakeLock();
-    } catch (e) {
-      console.warn('No se pudo iniciar portadora de audio en segundo plano:', e);
     }
+  }
+
+  /**
+   * Web Worker Heartbeat:
+   * En Android, los timers de la ventana principal (setInterval) se suspenden al bloquear la pantalla.
+   * Un Web Worker en segundo plano NO se congela y emite pulsos cada 250ms que reactivan
+   * la síntesis de voz si Chromium intentó pausarla.
+   */
+  private initWebWorkerHeartbeat() {
+    try {
+      const workerScript = `
+        let timer = null;
+        self.onmessage = function(e) {
+          if (e.data === 'start') {
+            if (!timer) {
+              timer = setInterval(function() {
+                self.postMessage('tick');
+              }, 250);
+            }
+          } else if (e.data === 'stop') {
+            if (timer) {
+              clearInterval(timer);
+              timer = null;
+            }
+          }
+        };
+      `;
+      const blob = new Blob([workerScript], { type: 'application/javascript' });
+      this.worker = new Worker(URL.createObjectURL(blob));
+      this.worker.onmessage = () => {
+        // En cada tick, invocar oyentes registrados
+        this.heartbeatListeners.forEach((listener) => {
+          try {
+            listener();
+          } catch {}
+        });
+      };
+    } catch (e) {
+      console.warn('Error inicializando worker heartbeat:', e);
+    }
+  }
+
+  public onHeartbeat(listener: () => void): () => void {
+    this.heartbeatListeners.add(listener);
+    return () => {
+      this.heartbeatListeners.delete(listener);
+    };
+  }
+
+  public async startBackgroundPlayback() {
+    this.unlock();
+    this.isBackgroundActive = true;
+
+    // Iniciar Web Worker heartbeat
+    if (this.worker) {
+      try {
+        this.worker.postMessage('start');
+      } catch {}
+    }
+
+    // Iniciar portadora de audio HTML5
+    if (this.audio) {
+      try {
+        if (this.audio.paused) {
+          await this.audio.play();
+        }
+      } catch (e) {
+        console.warn('No se pudo reproducir audio carrier HTML5:', e);
+      }
+    }
+
+    // Iniciar AudioContext
+    if (this.audioContext && this.audioContext.state === 'suspended') {
+      try {
+        await this.audioContext.resume();
+      } catch {}
+    }
+
+    // Activar estado de reproducción en MediaSession
+    if ('mediaSession' in navigator) {
+      try {
+        navigator.mediaSession.playbackState = 'playing';
+      } catch {}
+    }
+
+    await this.requestWakeLock();
   }
 
   public pauseBackgroundPlayback() {
@@ -98,7 +242,14 @@ class BackgroundAudioService {
       } catch {}
     }
     if ('mediaSession' in navigator) {
-      navigator.mediaSession.playbackState = 'paused';
+      try {
+        navigator.mediaSession.playbackState = 'paused';
+      } catch {}
+    }
+    if (this.worker) {
+      try {
+        this.worker.postMessage('stop');
+      } catch {}
     }
   }
 
@@ -110,8 +261,15 @@ class BackgroundAudioService {
       } catch {}
     }
     this.isBackgroundActive = false;
+    if (this.worker) {
+      try {
+        this.worker.postMessage('stop');
+      } catch {}
+    }
     if ('mediaSession' in navigator) {
-      navigator.mediaSession.playbackState = 'none';
+      try {
+        navigator.mediaSession.playbackState = 'none';
+      } catch {}
     }
     this.releaseWakeLock();
   }

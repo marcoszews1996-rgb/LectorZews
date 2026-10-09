@@ -1,4 +1,5 @@
 import { VoicePreset, VoicePresetId, LanguageOption } from '../types';
+import { backgroundAudioService } from './backgroundAudio';
 
 export const DEFAULT_LANGUAGE = 'es';
 
@@ -329,6 +330,32 @@ export class SpeechEngine {
       }
       this.initVoices();
       this.initAndroidBridge();
+      this.initKeepAliveMonitor();
+    }
+  }
+
+  private initKeepAliveMonitor() {
+    if (typeof window === 'undefined') return;
+
+    // Conectar el Web Worker heartbeat para reanudar la síntesis en segundo plano si Android la congela
+    backgroundAudioService.onHeartbeat(() => {
+      if (this.synth && this.synth.speaking) {
+        if (this.synth.paused) {
+          try {
+            this.synth.resume();
+          } catch {}
+        }
+      }
+    });
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (this.synth && this.synth.speaking) {
+          try {
+            this.synth.resume();
+          } catch {}
+        }
+      });
     }
   }
 
