@@ -1,8 +1,13 @@
-[{
-  "relation": ["delegate_permission/common.handle_all_urls"],
-  "target": {
-    "namespace": "android_app",
-    "package_name": "app.vercel.lector_zews.twa2",
-    "sha256_cert_fingerprints": ["E5:A3:01:55:8E:02:AF:90:21:96:D1:F5:D7:72:70:9E:78:B0:9E:1B:F0:10:4D:6F:9F:01:8F:3F:43:31:9E:2B"]
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "app.vercel.lector_zews.twa2",
+      "sha256_cert_fingerprints": [
+        "0A:3F:26:33:14:1E:83:01:2B:61:D5:DA:80:2A:75:54:F2:4A:2B:D3:B7:53:BC:1E:96:70:B1:CA:05:F5:3B:BD",
+        "E5:A3:01:55:8E:02:AF:90:21:96:D1:F5:D7:72:70:9E:78:B0:9E:1B:F0:10:4D:6F:9F:01:8F:3F:43:31:9E:2B"
+      ]
+    }
   }
-}]
+]

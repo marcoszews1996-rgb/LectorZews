@@ -20,9 +20,6 @@ export default defineConfig(() => {
           'pwa-512x512.png',
           'pwa-maskable-512x512.png',
           'app-ads.txt',
-          'LectorZews.apk',
-          'LectorZews.aab',
-          'lectorzews-android-project.zip',
           '.well-known/assetlinks.json',
         ],
         manifest: {
@@ -36,7 +33,7 @@ export default defineConfig(() => {
           theme_color: '#0c0a09',
           background_color: '#0c0a09',
           display: 'standalone',
-          display_override: ['standalone', 'window-controls-overlay', 'minimal-ui'],
+          display_override: ['fullscreen', 'standalone', 'minimal-ui'],
           orientation: 'any',
           start_url: '/',
           scope: '/',
