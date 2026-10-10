@@ -94,9 +94,14 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
         className="relative z-10 w-full px-4 sm:px-6 py-6 sm:py-10 flex flex-col items-center text-center animate-fadeIn select-none pb-36"
       >
         {/* Android App Header Pill */}
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/15 text-amber-300 text-xs font-semibold mb-3 backdrop-blur-md">
+        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-500/15 border border-amber-500/25 text-amber-300 text-xs font-semibold mb-2 backdrop-blur-md">
           <Sparkles className="w-3.5 h-3.5 text-amber-400" />
           <span>Lector de Libros y Documentos PDF</span>
+        </div>
+
+        {/* Ambient Scene Indicator */}
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-neutral-900/60 border border-amber-500/20 text-amber-200/90 text-[11px] mb-3 backdrop-blur-md shadow-sm">
+          <span>🎙️ Gran Biblioteca Zews • Narración en voz alta con micrófono</span>
         </div>
 
         <h2 className="text-2xl sm:text-3xl font-bold font-title text-neutral-100 tracking-wide max-w-xl mb-2">
@@ -117,7 +122,7 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
             sounds.playClick(600);
             onUploadClick();
           }}
-          className="w-full max-w-md p-6 rounded-2xl bg-gradient-to-br from-amber-500/20 via-neutral-900/90 to-neutral-950/95 active:scale-[0.98] transition-all cursor-pointer shadow-xl backdrop-blur-xl flex flex-col items-center justify-center group"
+          className="w-full max-w-md p-6 rounded-2xl bg-gradient-to-br from-amber-500/20 via-neutral-900/70 to-neutral-950/80 border border-amber-500/20 active:scale-[0.98] transition-all cursor-pointer shadow-xl backdrop-blur-xl flex flex-col items-center justify-center group"
         >
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 text-neutral-950 flex items-center justify-center shadow-lg shadow-amber-950/40 mb-3 group-active:scale-95 transition-transform">
             <Upload className="w-7 h-7 stroke-[2.5]" />

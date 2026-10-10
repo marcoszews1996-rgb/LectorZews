@@ -80,7 +80,7 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header
       id="main-app-header"
-      className="relative z-30 w-full px-3 sm:px-5 pt-[calc(0.5rem+env(safe-area-inset-top,0px))] pb-2.5 flex items-center justify-between bg-neutral-950/90 backdrop-blur-xl transition-all select-none"
+      className="relative z-30 w-full px-3 sm:px-5 pt-[calc(0.5rem+env(safe-area-inset-top,0px))] pb-2.5 flex items-center justify-between bg-neutral-950/75 backdrop-blur-xl border-b border-amber-500/10 transition-all select-none"
     >
       {/* Brand & Android Back Navigation */}
       <div className="flex items-center gap-2 sm:gap-3">

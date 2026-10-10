@@ -419,6 +419,47 @@ export default function App() {
         sentenceText: sentence,
       });
 
+      // Native Android Background Audio Engine:
+      // If running inside Android Native App, pass the entire book playlist to native Java
+      // so Android TextToSpeech reads continuously in background when user switches apps or locks screen!
+      if (speechEngine.hasNativePlaylistSupport()) {
+        const playlist: { pageIndex: number; sentenceIndex: number; text: string }[] = [];
+        let startIndex = 0;
+        let foundStart = false;
+
+        for (let p = 0; p < document.totalPages; p++) {
+          const pSentences = document.pages[p]?.sentences || [];
+          for (let s = 0; s < pSentences.length; s++) {
+            const txt = pSentences[s]?.trim();
+            if (txt) {
+              if (p === pageIdx && s === sentenceIdx && !foundStart) {
+                startIndex = playlist.length;
+                foundStart = true;
+              }
+              playlist.push({ pageIndex: p, sentenceIndex: s, text: txt });
+            }
+          }
+        }
+
+        const started = speechEngine.playNativeBookPlaylist(
+          document.title,
+          playlist,
+          startIndex,
+          {
+            speed: currSpeed,
+            presetId: currPreset,
+            lang: currLang,
+            voiceURI: selectedVoiceURI || undefined,
+          }
+        );
+
+        if (started) {
+          setCurrentPageIndex(pageIdx);
+          setCurrentSentenceIndex(sentenceIdx);
+          return;
+        }
+      }
+
       speechEngine.speak(sentence, {
         speed: currSpeed,
         presetId: currPreset,
@@ -618,12 +659,19 @@ export default function App() {
     }
 
     if (isPlaying) {
-      speechEngine.stop();
+      speechEngine.pause();
       setIsPlaying(false);
       setIsPaused(true);
       backgroundAudioService.pauseBackgroundPlayback();
     } else {
-      speakSentence(currentPageIndex, currentSentenceIndex);
+      if (isPaused && speechEngine.hasNativePlaylistSupport()) {
+        speechEngine.resume();
+        setIsPlaying(true);
+        setIsPaused(false);
+        backgroundAudioService.startBackgroundPlayback();
+      } else {
+        speakSentence(currentPageIndex, currentSentenceIndex);
+      }
     }
   };
 
@@ -636,6 +684,10 @@ export default function App() {
   const handlePrevSentence = () => {
     backgroundAudioService.unlock();
     if (!document) return;
+    if (isPlaying && speechEngine.hasNativePlaylistSupport()) {
+      speechEngine.prevSentence();
+      return;
+    }
     if (currentSentenceIndex > 0) {
       const nextIdx = currentSentenceIndex - 1;
       setCurrentSentenceIndex(nextIdx);
@@ -657,6 +709,10 @@ export default function App() {
   const handleNextSentence = () => {
     backgroundAudioService.unlock();
     if (!document) return;
+    if (isPlaying && speechEngine.hasNativePlaylistSupport()) {
+      speechEngine.nextSentence();
+      return;
+    }
     const page = document.pages[currentPageIndex];
     if (page && currentSentenceIndex + 1 < page.sentences.length) {
       const nextIdx = currentSentenceIndex + 1;
@@ -755,6 +811,55 @@ export default function App() {
       },
     });
   }, []);
+
+  // Listen for native Android background sentence changes and sync on return from background
+  useEffect(() => {
+    const unsubSentence = speechEngine.onSentenceChange((pIdx, sIdx) => {
+      setCurrentPageIndex(pIdx);
+      setCurrentSentenceIndex(sIdx);
+      setIsPlaying(true);
+      setIsPaused(false);
+      if (docRef.current) {
+        const sentenceText = docRef.current.pages[pIdx]?.sentences[sIdx] || '';
+        backgroundAudioService.updateMetadata({
+          title: docRef.current.title,
+          page: pIdx + 1,
+          totalPages: docRef.current.totalPages,
+          sentenceText,
+        });
+        recordBookHistory(docRef.current, pIdx, sIdx);
+      }
+    });
+
+    const unsubFinished = speechEngine.onQueueFinished(() => {
+      setIsPlaying(false);
+      setIsPaused(false);
+      backgroundAudioService.stopBackgroundPlayback();
+      showToast('Lectura finalizada');
+    });
+
+    const handleFocusSync = () => {
+      const indices = speechEngine.getNativeCurrentIndices();
+      if (indices) {
+        setCurrentPageIndex(indices.pageIndex);
+        setCurrentSentenceIndex(indices.sentenceIndex);
+      }
+    };
+
+    window.addEventListener('focus', handleFocusSync);
+    if (typeof document !== 'undefined') {
+      window.document.addEventListener('visibilitychange', handleFocusSync);
+    }
+
+    return () => {
+      unsubSentence();
+      unsubFinished();
+      window.removeEventListener('focus', handleFocusSync);
+      if (typeof document !== 'undefined') {
+        window.document.removeEventListener('visibilitychange', handleFocusSync);
+      }
+    };
+  }, [recordBookHistory, showToast]);
 
   // Bookmark Operations
   const handleAddCurrentBookmark = (customNote?: string) => {
@@ -1158,7 +1263,7 @@ export default function App() {
           alt="Biblioteca gigante con un micrófono en medio y un muñeco de tela leyendo un libro con ese micrófono"
           referrerPolicy="no-referrer"
           className={`w-full h-full object-cover object-center transform transition-all duration-700 ${
-            effectiveIsDark ? 'brightness-[0.65] contrast-[1.05]' : 'brightness-[0.85] contrast-[1.02]'
+            effectiveIsDark ? 'brightness-[0.72] contrast-[1.04]' : 'brightness-[0.88] contrast-[1.02]'
           }`}
           loading="eager"
         />
@@ -1166,11 +1271,11 @@ export default function App() {
         <div
           className={`absolute inset-0 transition-colors duration-500 ${
             effectiveIsDark
-              ? 'bg-neutral-950/50 mix-blend-multiply'
+              ? 'bg-neutral-950/40 mix-blend-multiply'
               : 'bg-amber-950/15 mix-blend-soft-light'
           }`}
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-neutral-950/90 via-neutral-950/20 to-neutral-950/75" />
+        <div className="absolute inset-0 bg-gradient-to-t from-neutral-950/85 via-neutral-950/15 to-neutral-950/70" />
       </div>
 
       {/* Main Header - Hidden in Immersive Mode */}

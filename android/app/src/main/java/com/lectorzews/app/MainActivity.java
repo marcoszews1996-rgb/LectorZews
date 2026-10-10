@@ -29,9 +29,20 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.os.PowerManager;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import java.io.InputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -295,6 +306,18 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onPause() {
+        super.onPause();
+        Log.d(TAG, "MainActivity onPause - background audio remains active");
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        Log.d(TAG, "MainActivity onStop - native background audio reading continues");
+    }
+
+    @Override
     protected void onDestroy() {
         if (ttsBridge != null) {
             ttsBridge.shutdown();
@@ -308,18 +331,130 @@ public class MainActivity extends Activity {
 
     /**
      * Native Android TextToSpeech Bridge exposing high-performance background speech
-     * synthesis directly to the WebView interface.
+     * synthesis with persistent sentence playlist, WakeLock, and system Media Notification.
      */
     public class AndroidTTSBridge {
         private TextToSpeech tts;
         private boolean isReady = false;
         private AudioManager audioManager;
         private Context context;
+        private PowerManager.WakeLock wakeLock;
+        private NotificationManager notificationManager;
+        private static final String NOTIF_CHANNEL_ID = "lectorzews_audio_playback";
+        private static final int NOTIF_ID = 2001;
+
+        public class PlaylistItem {
+            public int pageIndex;
+            public int sentenceIndex;
+            public String text;
+
+            public PlaylistItem(int pageIndex, int sentenceIndex, String text) {
+                this.pageIndex = pageIndex;
+                this.sentenceIndex = sentenceIndex;
+                this.text = text;
+            }
+        }
+
+        private final List<PlaylistItem> playlist = Collections.synchronizedList(new ArrayList<PlaylistItem>());
+        private int playlistIndex = 0;
+        private boolean isPlayingPlaylist = false;
+        private boolean isPaused = false;
+        private String currentBookTitle = "LectorZews";
+        private float currentRate = 1.0f;
+        private float currentPitch = 1.0f;
+        private String currentLang = "es-ES";
 
         public AndroidTTSBridge(Context context) {
             this.context = context;
             this.audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
+            initNotifications();
             initTTS();
+        }
+
+        private void initNotifications() {
+            try {
+                notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && notificationManager != null) {
+                    NotificationChannel channel = new NotificationChannel(
+                        NOTIF_CHANNEL_ID,
+                        "LectorZews - Lectura en Segundo Plano",
+                        NotificationManager.IMPORTANCE_LOW
+                    );
+                    channel.setDescription("Controles de audio y narración en segundo plano");
+                    channel.setShowBadge(false);
+                    notificationManager.createNotificationChannel(channel);
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Error initializing NotificationChannel", e);
+            }
+        }
+
+        private void acquireWakeLock() {
+            try {
+                if (wakeLock == null) {
+                    PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
+                    if (pm != null) {
+                        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "LectorZews:AudioKeepAlive");
+                    }
+                }
+                if (wakeLock != null && !wakeLock.isHeld()) {
+                    wakeLock.acquire(12 * 60 * 60 * 1000L); // Max 12 hours timeout
+                    Log.i(TAG, "Partial WakeLock acquired for background audio");
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Error acquiring wake lock", e);
+            }
+        }
+
+        private void releaseWakeLock() {
+            try {
+                if (wakeLock != null && wakeLock.isHeld()) {
+                    wakeLock.release();
+                    Log.i(TAG, "Partial WakeLock released");
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Error releasing wake lock", e);
+            }
+        }
+
+        private void updateNotification(String title, String contentText, boolean isOngoing) {
+            if (notificationManager == null) return;
+            try {
+                Intent openAppIntent = new Intent(context, MainActivity.class);
+                openAppIntent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                PendingIntent contentPendingIntent = PendingIntent.getActivity(
+                    context,
+                    0,
+                    openAppIntent,
+                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT : PendingIntent.FLAG_UPDATE_CURRENT
+                );
+
+                Notification.Builder builder;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    builder = new Notification.Builder(context, NOTIF_CHANNEL_ID);
+                } else {
+                    builder = new Notification.Builder(context);
+                }
+
+                builder.setContentTitle(title)
+                       .setContentText(contentText)
+                       .setSmallIcon(R.mipmap.ic_launcher)
+                       .setContentIntent(contentPendingIntent)
+                       .setOngoing(isOngoing)
+                       .setAutoCancel(!isOngoing);
+
+                notificationManager.notify(NOTIF_ID, builder.build());
+            } catch (Exception e) {
+                Log.w(TAG, "Error updating notification", e);
+            }
+        }
+
+        private void clearNotification() {
+            if (notificationManager != null) {
+                try {
+                    notificationManager.cancel(NOTIF_ID);
+                } catch (Exception ignored) {}
+            }
         }
 
         private void initTTS() {
@@ -344,6 +479,28 @@ public class MainActivity extends Activity {
 
                             @Override
                             public void onDone(String utteranceId) {
+                                // Native automatic queue progression: Runs on native thread, unaffected by WebView sleep!
+                                if (isPlayingPlaylist && !isPaused) {
+                                    playlistIndex++;
+                                    if (playlistIndex < playlist.size()) {
+                                        speakCurrentPlaylistItem();
+                                        return;
+                                    } else {
+                                        isPlayingPlaylist = false;
+                                        releaseWakeLock();
+                                        clearNotification();
+                                        runOnUiThread(new Runnable() {
+                                            @Override
+                                            public void run() {
+                                                if (webView != null) {
+                                                    webView.evaluateJavascript("if (window.__onAndroidTTSQueueFinished) window.__onAndroidTTSQueueFinished();", null);
+                                                }
+                                            }
+                                        });
+                                        return;
+                                    }
+                                }
+
                                 runOnUiThread(new Runnable() {
                                     @Override
                                     public void run() {
@@ -356,6 +513,13 @@ public class MainActivity extends Activity {
 
                             @Override
                             public void onError(String utteranceId) {
+                                Log.e(TAG, "TTS onError for " + utteranceId);
+                                if (isPlayingPlaylist && !isPaused && playlistIndex + 1 < playlist.size()) {
+                                    // Skip forward smoothly if single sentence encountered an issue
+                                    playlistIndex++;
+                                    speakCurrentPlaylistItem();
+                                    return;
+                                }
                                 runOnUiThread(new Runnable() {
                                     @Override
                                     public void run() {
@@ -368,6 +532,12 @@ public class MainActivity extends Activity {
 
                             @Override
                             public void onError(String utteranceId, int errorCode) {
+                                Log.e(TAG, "TTS onError (" + errorCode + ") for " + utteranceId);
+                                if (isPlayingPlaylist && !isPaused && playlistIndex + 1 < playlist.size()) {
+                                    playlistIndex++;
+                                    speakCurrentPlaylistItem();
+                                    return;
+                                }
                                 runOnUiThread(new Runnable() {
                                     @Override
                                     public void run() {
@@ -409,57 +579,201 @@ public class MainActivity extends Activity {
             return isReady && tts != null;
         }
 
+        private void applyLocale(String langCode) {
+            if (tts == null || !isReady || langCode == null || langCode.isEmpty()) return;
+            try {
+                Locale targetLocale;
+                if (langCode.contains("-")) {
+                    String[] parts = langCode.split("-");
+                    targetLocale = new Locale(parts[0], parts[1]);
+                } else if (langCode.contains("_")) {
+                    String[] parts = langCode.split("_");
+                    targetLocale = new Locale(parts[0], parts[1]);
+                } else {
+                    targetLocale = new Locale(langCode);
+                }
+                int availability = tts.isLanguageAvailable(targetLocale);
+                if (availability >= TextToSpeech.LANG_AVAILABLE) {
+                    tts.setLanguage(targetLocale);
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Error applying locale: " + langCode, e);
+            }
+        }
+
+        private void speakCurrentPlaylistItem() {
+            if (tts == null || !isReady || playlist.isEmpty() || playlistIndex >= playlist.size()) return;
+            try {
+                PlaylistItem item = playlist.get(playlistIndex);
+                if (audioManager != null) {
+                    audioManager.requestAudioFocus(null, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
+                }
+
+                applyLocale(currentLang);
+                tts.setSpeechRate(currentRate > 0 ? currentRate : 1.0f);
+                tts.setPitch(currentPitch > 0 ? currentPitch : 1.0f);
+
+                Bundle params = new Bundle();
+                params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f);
+                String uttId = "utt_p" + item.pageIndex + "_s" + item.sentenceIndex + "_" + System.currentTimeMillis();
+
+                tts.speak(item.text, TextToSpeech.QUEUE_FLUSH, params, uttId);
+
+                updateNotification(currentBookTitle, "Pág. " + (item.pageIndex + 1) + ": " + item.text, true);
+
+                final int pIdx = item.pageIndex;
+                final int sIdx = item.sentenceIndex;
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (webView != null) {
+                            webView.evaluateJavascript("if (window.__onAndroidTTSSentenceChange) window.__onAndroidTTSSentenceChange(" + pIdx + ", " + sIdx + ");", null);
+                        }
+                    }
+                });
+            } catch (Exception e) {
+                Log.e(TAG, "Error in speakCurrentPlaylistItem", e);
+            }
+        }
+
+        @JavascriptInterface
+        public void playBookPlaylist(String bookTitle, String jsonPlaylist, int startIndex, float rate, float pitch, String langCode) {
+            if (tts == null || !isReady) {
+                Log.w(TAG, "TTS not ready for playlist playback");
+                return;
+            }
+            try {
+                currentBookTitle = (bookTitle != null && !bookTitle.isEmpty()) ? bookTitle : "LectorZews";
+                currentRate = rate > 0 ? rate : 1.0f;
+                currentPitch = pitch > 0 ? pitch : 1.0f;
+                currentLang = (langCode != null && !langCode.isEmpty()) ? langCode : "es-ES";
+
+                applyLocale(currentLang);
+
+                playlist.clear();
+                JSONArray arr = new JSONArray(jsonPlaylist);
+                for (int i = 0; i < arr.length(); i++) {
+                    JSONObject obj = arr.getJSONObject(i);
+                    int pIdx = obj.optInt("pageIndex", 0);
+                    int sIdx = obj.optInt("sentenceIndex", 0);
+                    String txt = obj.optString("text", "");
+                    if (!txt.trim().isEmpty()) {
+                        playlist.add(new PlaylistItem(pIdx, sIdx, txt));
+                    }
+                }
+
+                if (playlist.isEmpty()) {
+                    Log.w(TAG, "playBookPlaylist called with empty sentences list");
+                    return;
+                }
+
+                playlistIndex = Math.max(0, Math.min(startIndex, playlist.size() - 1));
+                isPlayingPlaylist = true;
+                isPaused = false;
+
+                acquireWakeLock();
+                speakCurrentPlaylistItem();
+            } catch (Exception e) {
+                Log.e(TAG, "Error in playBookPlaylist", e);
+            }
+        }
+
         @JavascriptInterface
         public void speak(String text, float rate, float pitch, String langCode, String utteranceId) {
             if (tts == null || !isReady) {
                 Log.w(TAG, "TTS requested but engine not ready yet");
                 return;
             }
-
             try {
+                isPlayingPlaylist = false;
                 if (audioManager != null) {
-                    audioManager.requestAudioFocus(null, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK);
+                    audioManager.requestAudioFocus(null, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
                 }
 
-                if (langCode != null && !langCode.isEmpty()) {
-                    Locale targetLocale;
-                    if (langCode.contains("-")) {
-                        String[] parts = langCode.split("-");
-                        targetLocale = new Locale(parts[0], parts[1]);
-                    } else if (langCode.contains("_")) {
-                        String[] parts = langCode.split("_");
-                        targetLocale = new Locale(parts[0], parts[1]);
-                    } else {
-                        targetLocale = new Locale(langCode);
-                    }
-
-                    int availability = tts.isLanguageAvailable(targetLocale);
-                    if (availability >= TextToSpeech.LANG_AVAILABLE) {
-                        tts.setLanguage(targetLocale);
-                    }
-                }
-
+                applyLocale(langCode);
                 tts.setSpeechRate(rate > 0 ? rate : 1.0f);
                 tts.setPitch(pitch > 0 ? pitch : 1.0f);
 
+                acquireWakeLock();
                 Bundle params = new Bundle();
                 params.putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, 1.0f);
                 tts.speak(text, TextToSpeech.QUEUE_FLUSH, params, utteranceId != null ? utteranceId : "utt_" + System.currentTimeMillis());
+                updateNotification("LectorZews", text, true);
             } catch (Exception e) {
                 Log.e(TAG, "Error in native TTS speak", e);
             }
         }
 
         @JavascriptInterface
-        public void stop() {
-            if (tts != null && isReady) {
+        public void pause() {
+            isPaused = true;
+            if (tts != null) {
                 tts.stop();
+            }
+            releaseWakeLock();
+            updateNotification(currentBookTitle, "Lectura pausada", false);
+        }
+
+        @JavascriptInterface
+        public void resume() {
+            if (isPaused && !playlist.isEmpty() && playlistIndex < playlist.size()) {
+                isPaused = false;
+                acquireWakeLock();
+                speakCurrentPlaylistItem();
             }
         }
 
         @JavascriptInterface
+        public void stop() {
+            isPlayingPlaylist = false;
+            isPaused = false;
+            playlist.clear();
+            if (tts != null) {
+                tts.stop();
+            }
+            releaseWakeLock();
+            clearNotification();
+        }
+
+        @JavascriptInterface
+        public void nextSentence() {
+            if (!playlist.isEmpty() && playlistIndex + 1 < playlist.size()) {
+                playlistIndex++;
+                isPaused = false;
+                acquireWakeLock();
+                speakCurrentPlaylistItem();
+            }
+        }
+
+        @JavascriptInterface
+        public void prevSentence() {
+            if (!playlist.isEmpty() && playlistIndex > 0) {
+                playlistIndex--;
+                isPaused = false;
+                acquireWakeLock();
+                speakCurrentPlaylistItem();
+            }
+        }
+
+        @JavascriptInterface
+        public int getCurrentPageIndex() {
+            if (playlistIndex >= 0 && playlistIndex < playlist.size()) {
+                return playlist.get(playlistIndex).pageIndex;
+            }
+            return -1;
+        }
+
+        @JavascriptInterface
+        public int getCurrentSentenceIndex() {
+            if (playlistIndex >= 0 && playlistIndex < playlist.size()) {
+                return playlist.get(playlistIndex).sentenceIndex;
+            }
+            return -1;
+        }
+
+        @JavascriptInterface
         public boolean isSpeaking() {
-            return tts != null && isReady && tts.isSpeaking();
+            return (isPlayingPlaylist && !isPaused) || (tts != null && isReady && tts.isSpeaking());
         }
 
         @JavascriptInterface
@@ -508,9 +822,9 @@ public class MainActivity extends Activity {
         }
 
         public void shutdown() {
+            stop();
             if (tts != null) {
                 try {
-                    tts.stop();
                     tts.shutdown();
                 } catch (Exception ignored) {}
                 tts = null;

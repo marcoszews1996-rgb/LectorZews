@@ -293,7 +293,21 @@ declare global {
     AndroidTTS?: {
       isAvailable: () => boolean;
       speak: (text: string, rate: number, pitch: number, langCode: string, utteranceId: string) => void;
+      playBookPlaylist?: (
+        bookTitle: string,
+        jsonPlaylist: string,
+        startIndex: number,
+        rate: number,
+        pitch: number,
+        langCode: string
+      ) => void;
+      pause?: () => void;
+      resume?: () => void;
       stop: () => void;
+      nextSentence?: () => void;
+      prevSentence?: () => void;
+      getCurrentPageIndex?: () => number;
+      getCurrentSentenceIndex?: () => number;
       isSpeaking: () => boolean;
       getVoicesJson: () => string;
       setVoiceByName?: (voiceName: string) => void;
@@ -302,6 +316,8 @@ declare global {
     __onAndroidTTSDone?: (utteranceId: string) => void;
     __onAndroidTTSError?: (utteranceId: string, error: string) => void;
     __onAndroidTTSReady?: () => void;
+    __onAndroidTTSSentenceChange?: (pageIndex: number, sentenceIndex: number) => void;
+    __onAndroidTTSQueueFinished?: () => void;
   }
 }
 
@@ -322,6 +338,9 @@ export class SpeechEngine {
   private currentAndroidUttId: string | null = null;
   private selectedVoiceURI: string | null = null;
   private voiceListeners: Set<() => void> = new Set();
+
+  private sentenceChangeListeners: Set<(pageIndex: number, sentenceIndex: number) => void> = new Set();
+  private queueFinishedListeners: Set<() => void> = new Set();
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -394,6 +413,102 @@ export class SpeechEngine {
     window.__onAndroidTTSReady = () => {
       this.initVoices();
     };
+
+    window.__onAndroidTTSSentenceChange = (pageIndex: number, sentenceIndex: number) => {
+      this.isSpeakingActive = true;
+      this.isPausedState = false;
+      this.sentenceChangeListeners.forEach((fn) => {
+        try { fn(pageIndex, sentenceIndex); } catch {}
+      });
+    };
+
+    window.__onAndroidTTSQueueFinished = () => {
+      this.isSpeakingActive = false;
+      this.isPausedState = false;
+      this.queueFinishedListeners.forEach((fn) => {
+        try { fn(); } catch {}
+      });
+    };
+  }
+
+  public onSentenceChange(listener: (pageIndex: number, sentenceIndex: number) => void): () => void {
+    this.sentenceChangeListeners.add(listener);
+    return () => {
+      this.sentenceChangeListeners.delete(listener);
+    };
+  }
+
+  public onQueueFinished(listener: () => void): () => void {
+    this.queueFinishedListeners.add(listener);
+    return () => {
+      this.queueFinishedListeners.delete(listener);
+    };
+  }
+
+  public playNativeBookPlaylist(
+    bookTitle: string,
+    playlist: { pageIndex: number; sentenceIndex: number; text: string }[],
+    startIndex: number,
+    options: {
+      speed?: number;
+      presetId?: VoicePresetId;
+      lang?: string;
+      voiceURI?: string;
+    } = {}
+  ): boolean {
+    if (typeof window !== 'undefined' && window.AndroidTTS && window.AndroidTTS.playBookPlaylist) {
+      try {
+        if (options.voiceURI) {
+          window.AndroidTTS.setVoiceByName?.(options.voiceURI);
+        }
+        const speed = options.speed ?? 1.0;
+        const rate = (options.presetId === 'masculina' ? 1.05 : 1.08) * speed;
+        const pitch = options.presetId === 'masculina' ? 0.82 : 1.15;
+        const langFull = this.getFullLangCode(options.lang || 'es');
+
+        this.isSpeakingActive = true;
+        this.isPausedState = false;
+
+        window.AndroidTTS.playBookPlaylist(
+          bookTitle,
+          JSON.stringify(playlist),
+          startIndex,
+          rate,
+          pitch,
+          langFull
+        );
+        return true;
+      } catch (e) {
+        console.warn('Error en playNativeBookPlaylist:', e);
+      }
+    }
+    return false;
+  }
+
+  public hasNativePlaylistSupport(): boolean {
+    return (
+      typeof window !== 'undefined' &&
+      !!window.AndroidTTS &&
+      typeof window.AndroidTTS.playBookPlaylist === 'function'
+    );
+  }
+
+  public getNativeCurrentIndices(): { pageIndex: number; sentenceIndex: number } | null {
+    if (
+      typeof window !== 'undefined' &&
+      window.AndroidTTS &&
+      window.AndroidTTS.getCurrentPageIndex &&
+      window.AndroidTTS.getCurrentSentenceIndex
+    ) {
+      try {
+        const p = window.AndroidTTS.getCurrentPageIndex();
+        const s = window.AndroidTTS.getCurrentSentenceIndex();
+        if (p >= 0 && s >= 0) {
+          return { pageIndex: p, sentenceIndex: s };
+        }
+      } catch {}
+    }
+    return null;
   }
 
   private initVoices() {
@@ -1042,7 +1157,11 @@ export class SpeechEngine {
   public pause() {
     if (typeof window !== 'undefined' && window.AndroidTTS && window.AndroidTTS.isAvailable()) {
       try {
-        window.AndroidTTS.stop();
+        if (typeof window.AndroidTTS.pause === 'function') {
+          window.AndroidTTS.pause();
+        } else {
+          window.AndroidTTS.stop();
+        }
       } catch {}
       this.isPausedState = true;
       this.isSpeakingActive = false;
@@ -1060,7 +1179,13 @@ export class SpeechEngine {
 
   public resume() {
     if (typeof window !== 'undefined' && window.AndroidTTS && window.AndroidTTS.isAvailable()) {
+      try {
+        if (typeof window.AndroidTTS.resume === 'function') {
+          window.AndroidTTS.resume();
+        }
+      } catch {}
       this.isPausedState = false;
+      this.isSpeakingActive = true;
       return;
     }
     if (this.synth && (this.synth.paused || this.isPausedState)) {
@@ -1072,7 +1197,30 @@ export class SpeechEngine {
     }
   }
 
+  public nextSentence() {
+    if (typeof window !== 'undefined' && window.AndroidTTS?.nextSentence) {
+      try {
+        window.AndroidTTS.nextSentence();
+        return;
+      } catch {}
+    }
+  }
+
+  public prevSentence() {
+    if (typeof window !== 'undefined' && window.AndroidTTS?.prevSentence) {
+      try {
+        window.AndroidTTS.prevSentence();
+        return;
+      } catch {}
+    }
+  }
+
   public stop() {
+    if (typeof window !== 'undefined' && window.AndroidTTS && window.AndroidTTS.isAvailable()) {
+      try {
+        window.AndroidTTS.stop();
+      } catch {}
+    }
     this.cancelCurrentSpeech();
   }
 
