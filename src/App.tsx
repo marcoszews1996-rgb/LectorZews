@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Maximize2, Minimize2, Play, Pause } from 'lucide-react';
-import libraryPuppetBg from './assets/images/library_puppet_reading_mic_1792063761882.jpg';
+import libraryPuppetBg from './assets/images/giant_library_puppet_reading_1792066638887.jpg';
 import {
   Bookmark,
   FavoriteItem,
