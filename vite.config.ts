@@ -20,6 +20,7 @@ export default defineConfig(() => {
           'pwa-512x512.png',
           'pwa-maskable-512x512.png',
           'app-ads.txt',
+          'ads.txt',
           '.well-known/assetlinks.json',
         ],
         manifest: {
@@ -61,7 +62,7 @@ export default defineConfig(() => {
           ],
         },
         workbox: {
-          navigateFallbackDenylist: [/^\/\.well-known/],
+          navigateFallbackDenylist: [/^\/\.well-known/, /^\/app-ads\.txt/, /^\/ads\.txt/],
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
           runtimeCaching: [
             {
