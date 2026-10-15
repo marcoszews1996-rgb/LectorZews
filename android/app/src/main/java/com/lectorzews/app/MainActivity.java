@@ -261,7 +261,13 @@ public class MainActivity extends Activity {
         if (webView != null && webView.canGoBack()) {
             webView.goBack();
         } else {
-            super.onBackPressed();
+            // Si la voz está leyendo en voz alta, enviamos la app a segundo plano sin destruirla
+            // para que el usuario pueda usar otras aplicaciones o bloquear el teléfono sin parar la lectura
+            if (ttsBridge != null && ttsBridge.isSpeaking()) {
+                moveTaskToBack(true);
+            } else {
+                super.onBackPressed();
+            }
         }
     }
 
@@ -417,39 +423,60 @@ public class MainActivity extends Activity {
             }
         }
 
-        private void updateNotification(String title, String contentText, boolean isOngoing) {
-            if (notificationManager == null) return;
+        private final AudioManager.OnAudioFocusChangeListener audioFocusListener = new AudioManager.OnAudioFocusChangeListener() {
+            @Override
+            public void onAudioFocusChange(int focusChange) {
+                Log.d(TAG, "Native audio focus state: " + focusChange);
+            }
+        };
+
+        private void requestPermanentAudioFocus() {
+            if (audioManager == null) return;
             try {
-                Intent openAppIntent = new Intent(context, MainActivity.class);
-                openAppIntent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-                PendingIntent contentPendingIntent = PendingIntent.getActivity(
-                    context,
-                    0,
-                    openAppIntent,
-                    Build.VERSION.SDK_INT >= Build.VERSION_CODES.M ? PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT : PendingIntent.FLAG_UPDATE_CURRENT
-                );
-
-                Notification.Builder builder;
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    builder = new Notification.Builder(context, NOTIF_CHANNEL_ID);
+                    android.media.AudioAttributes playbackAttributes = new android.media.AudioAttributes.Builder()
+                        .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build();
+                    android.media.AudioFocusRequest focusRequest = new android.media.AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                        .setAudioAttributes(playbackAttributes)
+                        .setAcceptsDelayedFocusGain(true)
+                        .setWillPauseWhenDucked(false)
+                        .setOnAudioFocusChangeListener(audioFocusListener)
+                        .build();
+                    audioManager.requestAudioFocus(focusRequest);
                 } else {
-                    builder = new Notification.Builder(context);
+                    audioManager.requestAudioFocus(audioFocusListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
                 }
-
-                builder.setContentTitle(title)
-                       .setContentText(contentText)
-                       .setSmallIcon(R.mipmap.ic_launcher)
-                       .setContentIntent(contentPendingIntent)
-                       .setOngoing(isOngoing)
-                       .setAutoCancel(!isOngoing);
-
-                notificationManager.notify(NOTIF_ID, builder.build());
             } catch (Exception e) {
-                Log.w(TAG, "Error updating notification", e);
+                Log.w(TAG, "Error requesting audio focus", e);
+            }
+        }
+
+        private void updateNotification(String title, String contentText, boolean isOngoing) {
+            try {
+                if (isOngoing) {
+                    Intent serviceIntent = new Intent(context, AudioPlaybackService.class);
+                    serviceIntent.setAction(AudioPlaybackService.ACTION_START);
+                    serviceIntent.putExtra(AudioPlaybackService.EXTRA_TITLE, title);
+                    serviceIntent.putExtra(AudioPlaybackService.EXTRA_TEXT, contentText);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        context.startForegroundService(serviceIntent);
+                    } else {
+                        context.startService(serviceIntent);
+                    }
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Error starting AudioPlaybackService: ", e);
             }
         }
 
         private void clearNotification() {
+            try {
+                Intent serviceIntent = new Intent(context, AudioPlaybackService.class);
+                serviceIntent.setAction(AudioPlaybackService.ACTION_STOP);
+                context.startService(serviceIntent);
+            } catch (Exception ignored) {}
             if (notificationManager != null) {
                 try {
                     notificationManager.cancel(NOTIF_ID);
@@ -605,9 +632,7 @@ public class MainActivity extends Activity {
             if (tts == null || !isReady || playlist.isEmpty() || playlistIndex >= playlist.size()) return;
             try {
                 PlaylistItem item = playlist.get(playlistIndex);
-                if (audioManager != null) {
-                    audioManager.requestAudioFocus(null, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
-                }
+                requestPermanentAudioFocus();
 
                 applyLocale(currentLang);
                 tts.setSpeechRate(currentRate > 0 ? currentRate : 1.0f);
@@ -686,9 +711,7 @@ public class MainActivity extends Activity {
             }
             try {
                 isPlayingPlaylist = false;
-                if (audioManager != null) {
-                    audioManager.requestAudioFocus(null, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
-                }
+                requestPermanentAudioFocus();
 
                 applyLocale(langCode);
                 tts.setSpeechRate(rate > 0 ? rate : 1.0f);

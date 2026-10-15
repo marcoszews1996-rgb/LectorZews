@@ -18,6 +18,7 @@ import {
   Sliders,
   CheckCircle2,
   Search,
+  Compass,
 } from 'lucide-react';
 import { VoicePresetId, LanguageOption, AmbientTrackId } from '../types';
 import { VOICE_PRESETS, speechEngine, DEFAULT_LANGUAGE } from '../utils/speechEngine';
@@ -537,6 +538,8 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
                               <BookOpen className="w-3.5 h-3.5" />
                             ) : track.id === 'lluvia' ? (
                               <CloudRain className="w-3.5 h-3.5" />
+                            ) : track.id === 'misterio' ? (
+                              <Compass className="w-3.5 h-3.5 text-indigo-400" />
                             ) : (
                               <VolumeX className="w-3.5 h-3.5" />
                             )}
@@ -901,7 +904,9 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
             <span className="text-xs text-neutral-400">
               Voz activa: <strong className="text-amber-300">{currentlyChosenVoice?.label || (currentVoicePreset === 'femenina' ? 'Femenina' : 'Masculina')}</strong>
               {ambientTrack !== 'none' && (
-                <span className="ml-2 text-emerald-400">• Música: {ambientTrack === 'biblioteca' ? 'Biblioteca' : 'Lluvia'}</span>
+                <span className="ml-2 text-emerald-400">
+                  • Música: {ambientTrack === 'biblioteca' ? 'Biblioteca' : ambientTrack === 'lluvia' ? 'Lluvia' : ambientTrack === 'misterio' ? 'Misterio & Suspenso' : ''}
+                </span>
               )}
             </span>
             <button

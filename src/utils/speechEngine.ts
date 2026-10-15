@@ -342,6 +342,12 @@ export class SpeechEngine {
   private sentenceChangeListeners: Set<(pageIndex: number, sentenceIndex: number) => void> = new Set();
   private queueFinishedListeners: Set<() => void> = new Set();
 
+  private activeUtteranceDeadline: number = 0;
+  private activeFinishCallback: (() => void) | null = null;
+  private lastKeepAlivePulse: number = 0;
+  private utteranceDispatchedAt: number = 0;
+  private hasUtteranceStarted: boolean = false;
+
   constructor() {
     if (typeof window !== 'undefined') {
       if ('speechSynthesis' in window) {
@@ -356,22 +362,64 @@ export class SpeechEngine {
   private initKeepAliveMonitor() {
     if (typeof window === 'undefined') return;
 
-    // Conectar el Web Worker heartbeat para reanudar la síntesis en segundo plano si Android la congela
+    // Web Worker Heartbeat: No se congela cuando la pantalla se apaga o el usuario minimiza
     backgroundAudioService.onHeartbeat(() => {
-      if (this.synth && this.synth.speaking) {
+      if (!this.synth) return;
+      const now = Date.now();
+
+      if (this.isSpeakingActive && !this.isPausedState) {
+        // 1. Descongelar síntesis si Chromium la dejó en pausa o en cola
         if (this.synth.paused) {
           try {
             this.synth.resume();
           } catch {}
+        } else if (this.synth.pending || (this.currentUtterance && !this.synth.speaking)) {
+          try {
+            this.synth.pause();
+            this.synth.resume();
+          } catch {}
+        } else if (this.synth.speaking) {
+          // Pulso anti-corte para oraciones largas en background de Android (> 4.5s)
+          if (now - this.lastKeepAlivePulse > 4500) {
+            this.lastKeepAlivePulse = now;
+            try {
+              this.synth.pause();
+              this.synth.resume();
+            } catch {}
+          }
+        }
+
+        // 2. Si la locución fue despachada y no ha comenzado tras 1000ms en segundo plano
+        if (!this.hasUtteranceStarted && this.utteranceDispatchedAt > 0 && now - this.utteranceDispatchedAt > 1000) {
+          try {
+            this.synth.resume();
+          } catch {}
+        }
+
+        // 3. Watchdog infalible ejecutado desde el worker:
+        // Si la oración supera el tiempo estimado y no hay emisión activa, avanzar automáticamente
+        if (this.activeUtteranceDeadline > 0 && now > this.activeUtteranceDeadline) {
+          if (!this.synth.speaking) {
+            this.activeUtteranceDeadline = 0;
+            const cb = this.activeFinishCallback;
+            this.activeFinishCallback = null;
+            this.cancelCurrentSpeech();
+            cb?.();
+          }
         }
       }
     });
 
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', () => {
-        if (this.synth && this.synth.speaking) {
+        if (this.synth && this.isSpeakingActive && !this.isPausedState) {
           try {
-            this.synth.resume();
+            if (this.synth.paused) {
+              this.synth.resume();
+            } else if (this.synth.pending) {
+              this.synth.pause();
+              this.synth.resume();
+            }
           } catch {}
         }
       });
@@ -896,6 +944,10 @@ export class SpeechEngine {
     this.isPausedState = false;
     this.currentUtterance = null;
     this.activeUtteranceRetainer.clear();
+    this.activeUtteranceDeadline = 0;
+    this.activeFinishCallback = null;
+    this.hasUtteranceStarted = false;
+    this.utteranceDispatchedAt = 0;
   }
 
   /**
@@ -1068,6 +1120,10 @@ export class SpeechEngine {
     const finishUtterance = () => {
       if (hasHandledEnd) return;
       hasHandledEnd = true;
+      this.activeUtteranceDeadline = 0;
+      this.activeFinishCallback = null;
+      this.hasUtteranceStarted = false;
+      this.utteranceDispatchedAt = 0;
       this.clearTimers();
       this.isSpeakingActive = false;
       this.isPausedState = false;
@@ -1081,6 +1137,8 @@ export class SpeechEngine {
     utterance.onstart = () => {
       this.isSpeakingActive = true;
       this.isPausedState = false;
+      this.hasUtteranceStarted = true;
+      this.lastKeepAlivePulse = Date.now();
       this.startKeepAlive();
       onStart();
     };
@@ -1094,12 +1152,20 @@ export class SpeechEngine {
         this.clearTimers();
         this.isSpeakingActive = false;
         this.isPausedState = false;
+        this.activeUtteranceDeadline = 0;
+        this.activeFinishCallback = null;
+        this.hasUtteranceStarted = false;
+        this.utteranceDispatchedAt = 0;
         this.activeUtteranceRetainer.delete(utterance);
         return;
       }
       this.clearTimers();
       this.isSpeakingActive = false;
       this.isPausedState = false;
+      this.activeUtteranceDeadline = 0;
+      this.activeFinishCallback = null;
+      this.hasUtteranceStarted = false;
+      this.utteranceDispatchedAt = 0;
       this.activeUtteranceRetainer.delete(utterance);
       this.currentUtterance = null;
       onError(e);
@@ -1111,6 +1177,11 @@ export class SpeechEngine {
       8000,
       Math.ceil((wordCount / (90 * finalRate)) * 60 * 1000) + 6000
     );
+
+    this.activeUtteranceDeadline = Date.now() + estimatedDurationMs;
+    this.activeFinishCallback = finishUtterance;
+    this.utteranceDispatchedAt = Date.now();
+    this.hasUtteranceStarted = false;
 
     this.watchdogTimeout = window.setTimeout(() => {
       if (this.isSpeakingActive && !this.isPausedState) {
@@ -1134,6 +1205,11 @@ export class SpeechEngine {
           this.synth.resume();
         }
         this.synth.speak(utterance);
+        if (isHidden) {
+          try {
+            this.synth.resume();
+          } catch {}
+        }
       } catch (err) {
         finishUtterance();
         onError(err);

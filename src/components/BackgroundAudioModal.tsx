@@ -127,6 +127,8 @@ export const BackgroundAudioModal: React.FC<BackgroundAudioModalProps> = ({
                     ? '📖 Biblioteca Acústica'
                     : ambientTrack === 'lluvia'
                     ? '🌧️ Lluvia Serena (432 Hz)'
+                    : ambientTrack === 'misterio'
+                    ? '🕵️ Misterio & Suspenso Nocturno'
                     : '🔇 Desactivada'}
                 </span>
               </p>

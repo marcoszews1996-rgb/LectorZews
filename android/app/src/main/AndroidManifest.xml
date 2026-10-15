@@ -66,5 +66,12 @@
                 <data android:mimeType="application/pdf" />
             </intent-filter>
         </activity>
+
+        <!-- Foreground Service for 100% Uninterrupted Background Audio & TTS -->
+        <service
+            android:name=".AudioPlaybackService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
     </application>
 </manifest>

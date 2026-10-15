@@ -22,6 +22,13 @@ export const AMBIENT_TRACKS: AmbientTrack[] = [
     description: 'Gotas de lluvia suave sobre la ventana con ondas armónicas zen a 432 Hz para inmersión profunda.',
     icon: 'CloudRain',
   },
+  {
+    id: 'misterio',
+    name: 'Misterio & Suspenso Nocturno',
+    badge: 'Misterio',
+    description: 'Acordes menores enigmáticos, bajo de tensión oscura y campanadas tenues de intriga. Diseñado para novelas de misterio, policiacas y thrillers.',
+    icon: 'Compass',
+  },
 ];
 
 class AmbientAudioService {
@@ -112,6 +119,8 @@ class AmbientAudioService {
       this.startBibliotecaTrack(ctx);
     } else if (this.currentTrack === 'lluvia') {
       this.startLluviaTrack(ctx);
+    } else if (this.currentTrack === 'misterio') {
+      this.startMisterioTrack(ctx);
     }
   }
 
@@ -297,6 +306,142 @@ class AmbientAudioService {
         },
       });
     });
+  }
+
+  /**
+   * Track 3: Misterio & Suspenso Nocturno
+   * Atmósfera cinematográfica de misterio diseñada específicamente para novelas policiacas,
+   * thrillers y suspense:
+   * - Drone grave y oscuro en Re menor con ligera modulación lenta.
+   * - Progresión de acordes menores enigmáticos (Dm9, Bbmaj7#11, Gm6, Edim7, Dm(maj7)).
+   * - Campanadas tenues y misteriosas estilo caja de música victoriana.
+   * - Pulso sutil de tensión subacuática / latido pausado.
+   */
+  private startMisterioTrack(ctx: AudioContext) {
+    if (!this.masterGain) return;
+
+    // 1. Drone profundo de suspenso (D2 = 73.42 Hz y A2 = 110.00 Hz) con filtro cálido
+    const droneGain = ctx.createGain();
+    droneGain.gain.setValueAtTime(0.09, ctx.currentTime);
+
+    const droneFilter = ctx.createBiquadFilter();
+    droneFilter.type = 'lowpass';
+    droneFilter.frequency.setValueAtTime(320, ctx.currentTime);
+    droneFilter.Q.setValueAtTime(1.5, ctx.currentTime);
+
+    droneGain.connect(droneFilter);
+    droneFilter.connect(this.masterGain);
+
+    [73.42, 110.00, 146.83].forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      osc.type = idx === 0 ? 'sine' : 'triangle';
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+      // Detune lento para crear ondulación cinematográfica de tensión
+      osc.detune.setValueAtTime((idx - 1) * 3, ctx.currentTime);
+
+      const oscGain = ctx.createGain();
+      oscGain.gain.setValueAtTime(0.07 / (idx + 1), ctx.currentTime);
+
+      osc.connect(oscGain);
+      oscGain.connect(droneGain);
+      osc.start();
+
+      this.activeNodes.push({
+        stop: () => {
+          try { osc.stop(); } catch {}
+        },
+      });
+    });
+
+    // 2. Acordes menores de misterio e intriga
+    const chords = [
+      [146.83, 174.61, 220.00, 329.63], // Dm9 (tensión elegante)
+      [116.54, 174.61, 233.08, 311.13], // Bbmaj7#11 (misterio y enigma)
+      [146.83, 196.00, 233.08, 329.63], // Gm6/D (intriga clásica)
+      [164.81, 196.00, 233.08, 277.18], // Edim7 (suspenso punzante)
+      [146.83, 174.61, 220.00, 277.18], // Dm(maj7) (acorde de novela negra)
+    ];
+
+    // Notas melódicas de misterio / caja de música lejana
+    const bellPitches = [587.33, 698.46, 554.37, 659.25, 440.00, 880.00];
+
+    let chordIdx = 0;
+
+    const playNextMysterySection = () => {
+      if (!this.isRunning || !this.ctx || this.ctx.state === 'closed') return;
+
+      const currentChord = chords[chordIdx % chords.length];
+      chordIdx++;
+
+      const sectionGain = ctx.createGain();
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(420, ctx.currentTime);
+      filter.Q.setValueAtTime(2.2, ctx.currentTime);
+
+      sectionGain.connect(filter);
+      if (this.masterGain) {
+        filter.connect(this.masterGain);
+      }
+
+      const now = ctx.currentTime;
+      const duration = 5.6; // Cadencia lenta y envolvente
+
+      // Envolvente de volumen suave para no distraer la lectura
+      sectionGain.gain.setValueAtTime(0.0001, now);
+      sectionGain.gain.exponentialRampToValueAtTime(0.14, now + 1.2);
+      sectionGain.gain.exponentialRampToValueAtTime(0.08, now + 3.2);
+      sectionGain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+      currentChord.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        osc.type = idx === 0 ? 'sine' : 'triangle';
+        osc.frequency.setValueAtTime(freq, now);
+        osc.detune.setValueAtTime((idx - 1.5) * 5, now);
+
+        osc.connect(sectionGain);
+        osc.start(now);
+        osc.stop(now + duration + 0.1);
+
+        this.activeNodes.push({
+          stop: () => {
+            try { osc.stop(); } catch {}
+          },
+        });
+      });
+
+      // Tocar 1 o 2 notas agudas de campana misteriosa (caja de música)
+      const bellNote = bellPitches[chordIdx % bellPitches.length];
+      const bellDelay = 1.4 + (chordIdx % 3) * 0.7;
+      const bellTime = now + bellDelay;
+
+      const bellOsc = ctx.createOscillator();
+      bellOsc.type = 'sine';
+      bellOsc.frequency.setValueAtTime(bellNote, bellTime);
+
+      const bellGain = ctx.createGain();
+      bellGain.gain.setValueAtTime(0.0001, bellTime);
+      bellGain.gain.exponentialRampToValueAtTime(0.035, bellTime + 0.05);
+      bellGain.gain.exponentialRampToValueAtTime(0.0001, bellTime + 1.8);
+
+      bellOsc.connect(bellGain);
+      if (this.masterGain) {
+        bellGain.connect(this.masterGain);
+      }
+      bellOsc.start(bellTime);
+      bellOsc.stop(bellTime + 1.9);
+
+      this.activeNodes.push({
+        stop: () => {
+          try { bellOsc.stop(); } catch {}
+        },
+      });
+
+      // Programar siguiente compás con transición suave
+      this.loopTimer = window.setTimeout(playNextMysterySection, 5000);
+    };
+
+    playNextMysterySection();
   }
 }
 

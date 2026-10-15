@@ -55,7 +55,7 @@ javac -source 8 -target 8 \
   -d /tmp/lectorzews-build/bin \
   -classpath $ANDROID_JAR:/tmp/lectorzews-build/gen \
   /tmp/lectorzews-build/gen/com/lectorzews/app/R.java \
-  android/app/src/main/java/com/lectorzews/app/MainActivity.java
+  android/app/src/main/java/com/lectorzews/app/*.java
 
 # 7. Convert bytecode to Dalvik executable (classes.dex)
 echo "Compiling to classes.dex..."

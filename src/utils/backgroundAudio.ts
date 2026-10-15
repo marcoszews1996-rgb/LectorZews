@@ -164,7 +164,7 @@ class BackgroundAudioService {
             if (!timer) {
               timer = setInterval(function() {
                 self.postMessage('tick');
-              }, 250);
+              }, 200);
             }
           } else if (e.data === 'stop') {
             if (timer) {
@@ -177,7 +177,17 @@ class BackgroundAudioService {
       const blob = new Blob([workerScript], { type: 'application/javascript' });
       this.worker = new Worker(URL.createObjectURL(blob));
       this.worker.onmessage = () => {
-        // En cada tick, invocar oyentes registrados
+        // En cada tick, garantizar que el carrier de audio y AudioContext sigan despiertos
+        if (this.isBackgroundActive) {
+          if (this.audio && this.audio.paused) {
+            this.audio.play().catch(() => {});
+          }
+          if (this.audioContext && this.audioContext.state === 'suspended') {
+            this.audioContext.resume().catch(() => {});
+          }
+        }
+
+        // Invocar oyentes registrados (keep-alive monitor de SpeechEngine)
         this.heartbeatListeners.forEach((listener) => {
           try {
             listener();

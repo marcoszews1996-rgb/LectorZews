@@ -2,7 +2,7 @@ export type ThemeMode = 'auto' | 'dark' | 'light';
 
 export type VoicePresetId = 'femenina' | 'masculina';
 
-export type AmbientTrackId = 'none' | 'biblioteca' | 'lluvia';
+export type AmbientTrackId = 'none' | 'biblioteca' | 'lluvia' | 'misterio';
 
 export interface AmbientTrack {
   id: AmbientTrackId;

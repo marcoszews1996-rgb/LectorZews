@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Maximize2, Minimize2, Play, Pause } from 'lucide-react';
-import libraryPuppetBg from './assets/images/library_doll_mic_1791575639917.jpg';
+import libraryPuppetBg from './assets/images/library_puppet_reading_mic_1792063761882.jpg';
 import {
   Bookmark,
   FavoriteItem,
@@ -408,6 +408,7 @@ export default function App() {
 
       setIsPlaying(true);
       setIsPaused(false);
+      isReadingRef.current = true;
       recordBookHistory(document, pageIdx, sentenceIdx);
 
       // Start background keep-alive audio session and update lock-screen notification metadata
@@ -1256,7 +1257,7 @@ export default function App() {
         effectiveIsDark ? 'text-neutral-100' : 'text-neutral-900'
       }`}
     >
-      {/* Nostalgic Giant Library with Center Microphone & Reading Cloth Puppet Background */}
+      {/* Nostalgic Giant Library with Reading Cloth Puppet Background */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
         <img
           src={libraryPuppetBg}

@@ -357,7 +357,13 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
                 }`}
                 title={
                   ambientTrack !== 'none'
-                    ? `Fondo: ${ambientTrack === 'biblioteca' ? 'Biblioteca Acústica' : 'Lluvia Serena'}. Toca para cambiar voz o instrumental.`
+                    ? `Fondo: ${
+                        ambientTrack === 'biblioteca'
+                          ? 'Biblioteca Acústica'
+                          : ambientTrack === 'lluvia'
+                          ? 'Lluvia Serena'
+                          : 'Misterio & Suspenso'
+                      }. Toca para cambiar voz o instrumental.`
                     : 'Añadir música ambiental de fondo o cambiar voz'
                 }
               >
@@ -373,6 +379,8 @@ export const AudioPlayerBar: React.FC<AudioPlayerBarProps> = ({
                     ? 'Biblioteca'
                     : ambientTrack === 'lluvia'
                     ? 'Lluvia'
+                    : ambientTrack === 'misterio'
+                    ? 'Misterio'
                     : 'Fondo'}
                 </span>
               </button>
