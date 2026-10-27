@@ -1,0 +1,1602 @@
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Maximize2, Minimize2, Play, Pause } from 'lucide-react';
+import libraryPuppetBg from './assets/images/library_puppet_mic_1792797750894.jpg';
+import {
+  Bookmark,
+  FavoriteItem,
+  PDFDocumentData,
+  ThemeMode,
+  VoicePresetId,
+  SleepTimerState,
+  SleepTimerMode,
+  BookHistoryItem,
+  AmbientTrackId,
+} from './types';
+import { SAMPLE_BOOKS } from './data/sampleBooks';
+import { parsePdfArrayBuffer, createDocumentFromText } from './utils/pdfParser';
+import {
+  speechEngine,
+  detectLanguage,
+  SUPPORTED_LANGUAGES,
+  DEFAULT_LANGUAGE,
+} from './utils/speechEngine';
+import { sounds } from './utils/soundEffects';
+import { backgroundAudioService } from './utils/backgroundAudio';
+import { ambientAudioService } from './utils/ambientAudio';
+import {
+  getStoredBookmarks,
+  saveBookmark,
+  removeBookmark,
+  updateBookmarkNote,
+  getStoredFavorites,
+  toggleFavorite,
+  isFavorite,
+  getStoredSettings,
+  saveStoredSettings,
+  getStoredHistory,
+  saveHistoryItem,
+  removeHistoryItem,
+  clearHistory,
+  getPdfOpenCount,
+  incrementPdfOpenCount,
+  hasSeenInterstitial,
+  markInterstitialAsSeen,
+} from './utils/storage';
+
+import { Header } from './components/Header';
+import { DocumentReader } from './components/DocumentReader';
+import { AudioPlayerBar } from './components/AudioPlayerBar';
+import { MiniAudioPlayer } from './components/MiniAudioPlayer';
+import { VoiceSelectorModal } from './components/VoiceSelectorModal';
+import { SleepTimerModal } from './components/SleepTimerModal';
+import { HistoryModal } from './components/HistoryModal';
+import { BackgroundAudioModal } from './components/BackgroundAudioModal';
+import { AdMobBanner } from './components/AdMobBanner';
+import { AdMobInterstitialModal } from './components/AdMobInterstitialModal';
+import { NotificationModal } from './components/NotificationModal';
+import { readingReminderService, LastReadBookData } from './utils/readingReminderNotification';
+
+export default function App() {
+  // Settings & Preferences
+  const [settings, setSettings] = useState(() => getStoredSettings());
+  const [theme, setTheme] = useState<ThemeMode>(() => settings.theme || 'auto');
+  const [isSystemDark, setIsSystemDark] = useState<boolean>(false);
+  const [soundsEnabled, setSoundsEnabled] = useState<boolean>(() => settings.soundsEnabled ?? true);
+  const [speed, setSpeed] = useState<number>(() => settings.speed || 1.0);
+  const [voicePreset, setVoicePreset] = useState<VoicePresetId>(() => settings.voicePreset || 'femenina');
+  const [selectedVoiceURI, setSelectedVoiceURI] = useState<string | null>(() => settings.selectedVoiceURI || null);
+  const [ambientTrack, setAmbientTrack] = useState<AmbientTrackId>(() => settings.ambientTrack || 'none');
+  const [ambientVolume, setAmbientVolume] = useState<number>(() => settings.ambientVolume ?? 0.25);
+  const [smartRhythm, setSmartRhythm] = useState<boolean>(() => settings.smartRhythm ?? true);
+  const [language, setLanguage] = useState<string>(() => settings.language || DEFAULT_LANGUAGE);
+
+  const smartRhythmRef = useRef<boolean>(smartRhythm);
+  smartRhythmRef.current = smartRhythm;
+
+  const languageRef = useRef<string>(language);
+  languageRef.current = language;
+
+  // Document & Reading State
+  const [document, setDocument] = useState<PDFDocumentData | null>(null);
+  const [currentView, setCurrentView] = useState<'library' | 'reader'>('library');
+  const [currentPageIndex, setCurrentPageIndex] = useState<number>(0);
+  const [currentSentenceIndex, setCurrentSentenceIndex] = useState<number>(0);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [isPaused, setIsPaused] = useState<boolean>(false);
+
+  // Bookmarks & Favorites
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>(() => getStoredBookmarks());
+  const [favorites, setFavorites] = useState<FavoriteItem[]>(() => getStoredFavorites());
+
+  // Reading History (Reloj de historial)
+  const [history, setHistory] = useState<BookHistoryItem[]>(() => getStoredHistory());
+  const [isHistoryOpen, setIsHistoryOpen] = useState<boolean>(false);
+
+  // Sleep Timer State
+  const [isSleepTimerOpen, setIsSleepTimerOpen] = useState<boolean>(false);
+  const [sleepTimer, setSleepTimer] = useState<SleepTimerState>({
+    isActive: false,
+    mode: 'duration',
+    initialMinutes: 0,
+    remainingSeconds: 0,
+    targetTimestamp: null,
+  });
+  const sleepTimerRef = useRef<SleepTimerState>(sleepTimer);
+  sleepTimerRef.current = sleepTimer;
+
+  // UI Modals & Feedback
+  const [isBookmarksOpen, setIsBookmarksOpen] = useState<boolean>(false);
+  const [isVoicesOpen, setIsVoicesOpen] = useState<boolean>(false);
+  const [isBackgroundModalOpen, setIsBackgroundModalOpen] = useState<boolean>(false);
+  const [isNotificationModalOpen, setIsNotificationModalOpen] = useState<boolean>(false);
+  const [lastReadPosition, setLastReadPosition] = useState<LastReadBookData | null>(() =>
+    readingReminderService.getLastReadBook()
+  );
+
+  const [pdfOpenCount, setPdfOpenCount] = useState<number>(() => getPdfOpenCount());
+  const [isInterstitialOpen, setIsInterstitialOpen] = useState<boolean>(false);
+  const [pendingOpenAction, setPendingOpenAction] = useState<(() => void) | null>(null);
+  const [interstitialBookTitle, setInterstitialBookTitle] = useState<string>('Documento PDF');
+  const [isInterstitialTestPreview, setIsInterstitialTestPreview] = useState<boolean>(false);
+  const [isLoadingFile, setIsLoadingFile] = useState<boolean>(false);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Modo Inmersivo (Lectura sin distracciones, ocultando Header y AudioBar)
+  const [isImmersiveMode, setIsImmersiveMode] = useState<boolean>(false);
+
+  const isReadingRef = useRef<boolean>(false);
+  isReadingRef.current = isPlaying;
+
+  // Auto Dark Mode synchronization with system preferences
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    setIsSystemDark(mediaQuery.matches);
+
+    const handler = (e: MediaQueryListEvent) => {
+      setIsSystemDark(e.matches);
+    };
+    mediaQuery.addEventListener('change', handler);
+    return () => mediaQuery.removeEventListener('change', handler);
+  }, []);
+
+  // Update sound system on state change
+  useEffect(() => {
+    sounds.setEnabled(soundsEnabled);
+  }, [soundsEnabled]);
+
+  // Compute effective dark mode
+  const effectiveIsDark = theme === 'dark' || (theme === 'auto' && isSystemDark);
+
+  const showToast = useCallback((msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage((current) => (current === msg ? null : current));
+    }, 3500);
+  }, []);
+
+  // Save settings when modified
+  const updateSettings = useCallback((updates: Partial<typeof settings>) => {
+    setSettings((prev) => {
+      const next = { ...prev, ...updates };
+      saveStoredSettings(next);
+      return next;
+    });
+  }, []);
+
+  const handleCycleTheme = () => {
+    const nextTheme: ThemeMode = theme === 'auto' ? 'dark' : theme === 'dark' ? 'light' : 'auto';
+    setTheme(nextTheme);
+    updateSettings({ theme: nextTheme });
+    showToast(`Modo visual: ${nextTheme === 'auto' ? 'Automático (según sistema)' : nextTheme === 'dark' ? 'Oscuro (ahorro batería)' : 'Claro'}`);
+  };
+
+  const handleToggleImmersive = useCallback(
+    (forceVal?: boolean) => {
+      setIsImmersiveMode((prev) => {
+        const next = typeof forceVal === 'boolean' ? forceVal : !prev;
+        sounds.playClick(next ? 850 : 500);
+        showToast(
+          next
+            ? '✨ Modo Inmersivo activado: controles ocultos. Pulsa Esc o el botón flotante para salir.'
+            : 'Modo normal restaurado: controles visibles.'
+        );
+        return next;
+      });
+    },
+    [showToast]
+  );
+
+  // Allow pressing Escape key to exit immersive mode smoothly
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isImmersiveMode) {
+        handleToggleImmersive(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isImmersiveMode, handleToggleImmersive]);
+
+  const handleToggleSounds = () => {
+    const next = !soundsEnabled;
+    setSoundsEnabled(next);
+    sounds.setEnabled(next);
+    if (next) sounds.playPlay();
+    updateSettings({ soundsEnabled: next });
+    showToast(next ? 'Sonidos táctiles activados' : 'Sonidos desactivados');
+  };
+
+  const handleSpeedChange = (newSpeed: number) => {
+    setSpeed(newSpeed);
+    updateSettings({ speed: newSpeed });
+    // If currently speaking, restart current sentence with new rate
+    if (isPlaying && document) {
+      speakSentence(currentPageIndex, currentSentenceIndex, newSpeed, voicePreset);
+    }
+  };
+
+  // Sync ambient and speechEngine initial states
+  useEffect(() => {
+    speechEngine.setSelectedVoice(selectedVoiceURI);
+  }, [selectedVoiceURI]);
+
+  useEffect(() => {
+    ambientAudioService.setTrack(ambientTrack);
+    ambientAudioService.setVolume(ambientVolume);
+  }, [ambientTrack, ambientVolume]);
+
+  // Keep ambient music in sync with playback state
+  useEffect(() => {
+    if (isPlaying) {
+      if (ambientTrack !== 'none') {
+        ambientAudioService.start();
+      }
+    } else {
+      ambientAudioService.pause();
+    }
+  }, [isPlaying, ambientTrack]);
+
+  // Start 8-hour reading reminder notification monitor
+  useEffect(() => {
+    readingReminderService.startSchedule((bookData) => {
+      // User tapped notification to resume reading
+      const sample = SAMPLE_BOOKS.find(
+        (b) => b.doc.fileName === bookData.fileName || b.title === bookData.title
+      );
+      if (sample) {
+        handleSelectSampleBook(sample.id, true);
+      }
+    });
+
+    return () => {
+      readingReminderService.stopSchedule();
+    };
+  }, []);
+
+  const handleSelectSpecificVoice = (voiceURI: string | null) => {
+    speechEngine.cancelCurrentSpeech();
+    setSelectedVoiceURI(voiceURI);
+    speechEngine.setSelectedVoice(voiceURI);
+    updateSettings({ selectedVoiceURI: voiceURI });
+
+    if (voiceURI) {
+      const scanned = speechEngine.getScannedVoices().find(
+        (v) => v.voice.voiceURI === voiceURI || v.voice.name === voiceURI
+      );
+      showToast(`🎙️ Voz seleccionada: ${scanned?.label || voiceURI}`);
+    } else {
+      showToast(`✨ Volviendo a voz automática (${voicePreset === 'femenina' ? 'Femenina' : 'Masculina'})`);
+    }
+
+    if (isPlaying && document) {
+      speakSentence(currentPageIndex, currentSentenceIndex);
+    }
+  };
+
+  const handleSelectAmbientTrack = (track: AmbientTrackId) => {
+    setAmbientTrack(track);
+    ambientAudioService.setTrack(track);
+    ambientAudioService.setVolume(ambientVolume);
+    updateSettings({ ambientTrack: track });
+
+    if (track === 'biblioteca') {
+      showToast('📖 Instrumental activado: Biblioteca Acústica & Piano Cálido');
+    } else if (track === 'lluvia') {
+      showToast('🌧️ Instrumental activado: Lluvia Serena & Drones Meditativos');
+    } else {
+      showToast('🔇 Instrumental desactivado (Solo voz)');
+    }
+
+    if (isPlaying) {
+      if (track !== 'none') {
+        ambientAudioService.start();
+      } else {
+        ambientAudioService.stop();
+      }
+    }
+  };
+
+  const handleAmbientVolumeChange = (vol: number) => {
+    setAmbientVolume(vol);
+    ambientAudioService.setVolume(vol);
+    updateSettings({ ambientVolume: vol });
+  };
+
+  const handleSelectVoicePreset = (preset: VoicePresetId) => {
+    speechEngine.cancelCurrentSpeech();
+    setVoicePreset(preset);
+    setSelectedVoiceURI(null);
+    speechEngine.setSelectedVoice(null);
+    updateSettings({ voicePreset: preset, selectedVoiceURI: null });
+
+    if (preset === 'femenina') {
+      showToast('👩 Voz Femenina seleccionada');
+    } else {
+      showToast('🎙️ Voz Masculina seleccionada');
+    }
+
+    if (isPlaying && document) {
+      speakSentence(currentPageIndex, currentSentenceIndex, speed, preset);
+    }
+  };
+
+  const handleSelectLanguage = (langCode: string) => {
+    speechEngine.cancelCurrentSpeech();
+    setLanguage(langCode);
+    languageRef.current = langCode;
+    updateSettings({ language: langCode });
+
+    const langInfo = SUPPORTED_LANGUAGES.find(
+      (l) => l.code.toLowerCase() === langCode.toLowerCase()
+    );
+    const langName = langInfo ? `${langInfo.flag} ${langInfo.name}` : langCode.toUpperCase();
+    showToast(`Idioma de lectura: ${langName}`);
+
+    if (isPlaying && document) {
+      speakSentence(
+        currentPageIndex,
+        currentSentenceIndex,
+        speed,
+        voicePreset,
+        false,
+        smartRhythmRef.current,
+        langCode
+      );
+    }
+  };
+
+  const handleToggleSmartRhythm = () => {
+    const next = !smartRhythm;
+    setSmartRhythm(next);
+    smartRhythmRef.current = next;
+    updateSettings({ smartRhythm: next });
+    sounds.playClick(next ? 750 : 500);
+    showToast(
+      next
+        ? '✨ Ritmo Inteligente activado: modulación natural según comas y puntuación'
+        : 'Ritmo Inteligente desactivado: velocidad estándar fija'
+    );
+    if (isPlaying && document) {
+      speakSentence(currentPageIndex, currentSentenceIndex, speed, voicePreset, false, next);
+    }
+  };
+
+  // Record Book Progress to Playback History
+  const recordBookHistory = useCallback(
+    (doc: PDFDocumentData, pageIdx: number, sentenceIdx: number) => {
+      const totalPages = doc.totalPages || 1;
+      const pageSentencesCount = Math.max(1, doc.pages[pageIdx]?.sentences.length || 1);
+      const rawProgress = ((pageIdx + (sentenceIdx + 1) / pageSentencesCount) / totalPages) * 100;
+      const progress = Math.min(100, Math.max(1, Math.round(rawProgress)));
+
+      const sampleMatch = SAMPLE_BOOKS.find(
+        (b) => b.doc.fileName === doc.fileName || b.title === doc.title
+      );
+
+      const updated = saveHistoryItem({
+        fileName: doc.fileName,
+        title: doc.title,
+        totalPages: doc.totalPages,
+        lastPageIndex: pageIdx,
+        lastSentenceIndex: sentenceIdx,
+        progressPercent: progress,
+        isSample: !!sampleMatch,
+        sampleId: sampleMatch?.id,
+        author: sampleMatch?.author,
+      });
+      setHistory(updated);
+
+      readingReminderService.recordLastReadPosition({
+        title: doc.title,
+        fileName: doc.fileName,
+        page: pageIdx + 1,
+        totalPages: doc.totalPages,
+        sentenceIndex: sentenceIdx,
+        author: sampleMatch?.author,
+      });
+      setLastReadPosition(readingReminderService.getLastReadBook());
+    },
+    []
+  );
+
+  // Handle complete finishing of a book: cleanly returns to home view without black screen
+  const handleBookFinished = useCallback(() => {
+    speechEngine.stop();
+    setIsPlaying(false);
+    setIsPaused(false);
+    isReadingRef.current = false;
+    setIsImmersiveMode(false);
+    backgroundAudioService.stopBackgroundPlayback();
+    if (sleepTimerRef.current.isActive) {
+      setSleepTimer({
+        isActive: false,
+        mode: 'duration',
+        initialMinutes: 0,
+        remainingSeconds: 0,
+        targetTimestamp: null,
+      });
+    }
+    sounds.playDocumentLoaded();
+    showToast('📖 ¡Lectura completada! Volviendo al inicio');
+    setDocument(null);
+    setCurrentView('library');
+    setCurrentPageIndex(0);
+    setCurrentSentenceIndex(0);
+  }, [showToast]);
+
+  const handleBookFinishedRef = useRef<() => void>(handleBookFinished);
+  handleBookFinishedRef.current = handleBookFinished;
+
+  // Main Speech Dispatcher
+  const speakSentence = useCallback(
+    (
+      pageIdx: number,
+      sentenceIdx: number,
+      currSpeed = speed,
+      currPreset = voicePreset,
+      isSequential = false,
+      currSmartRhythm = smartRhythmRef.current,
+      currLang = languageRef.current
+    ) => {
+      if (!document) return;
+      const page = document.pages[pageIdx];
+      if (!page) {
+        setIsPlaying(false);
+        speechEngine.stop();
+        return;
+      }
+
+      const sentence = page.sentences[sentenceIdx];
+      if (!sentence) {
+        // Page completed, advance to next page if available
+        if (pageIdx + 1 < document.totalPages) {
+          setCurrentPageIndex(pageIdx + 1);
+          setCurrentSentenceIndex(0);
+          speakSentence(pageIdx + 1, 0, currSpeed, currPreset, true, currSmartRhythm, currLang);
+        } else {
+          // Document finished!
+          handleBookFinished();
+        }
+        return;
+      }
+
+      setIsPlaying(true);
+      setIsPaused(false);
+      isReadingRef.current = true;
+      recordBookHistory(document, pageIdx, sentenceIdx);
+
+      // Start background keep-alive audio session and update lock-screen notification metadata
+      backgroundAudioService.startBackgroundPlayback();
+      backgroundAudioService.updateMetadata({
+        title: document.title,
+        page: pageIdx + 1,
+        totalPages: document.totalPages,
+        sentenceText: sentence,
+      });
+
+      // Native Android Background Audio Engine:
+      // If running inside Android Native App, pass the entire book playlist to native Java
+      // so Android TextToSpeech reads continuously in background when user switches apps or locks screen!
+      if (speechEngine.hasNativePlaylistSupport()) {
+        const playlist: { pageIndex: number; sentenceIndex: number; text: string }[] = [];
+        let startIndex = 0;
+        let foundStart = false;
+
+        for (let p = 0; p < document.totalPages; p++) {
+          const pSentences = document.pages[p]?.sentences || [];
+          for (let s = 0; s < pSentences.length; s++) {
+            const txt = pSentences[s]?.trim();
+            if (txt) {
+              if (p === pageIdx && s === sentenceIdx && !foundStart) {
+                startIndex = playlist.length;
+                foundStart = true;
+              }
+              playlist.push({ pageIndex: p, sentenceIndex: s, text: txt });
+            }
+          }
+        }
+
+        const started = speechEngine.playNativeBookPlaylist(
+          document.title,
+          playlist,
+          startIndex,
+          {
+            speed: currSpeed,
+            presetId: currPreset,
+            lang: currLang,
+            voiceURI: selectedVoiceURI || undefined,
+          }
+        );
+
+        if (started) {
+          setCurrentPageIndex(pageIdx);
+          setCurrentSentenceIndex(sentenceIdx);
+          return;
+        }
+      }
+
+      speechEngine.speak(sentence, {
+        speed: currSpeed,
+        presetId: currPreset,
+        lang: currLang,
+        isSequential,
+        smartRhythm: currSmartRhythm,
+        onStart: () => {
+          setCurrentPageIndex(pageIdx);
+          setCurrentSentenceIndex(sentenceIdx);
+          backgroundAudioService.updateMetadata({
+            title: document.title,
+            page: pageIdx + 1,
+            totalPages: document.totalPages,
+            sentenceText: sentence,
+          });
+        },
+        onEnd: () => {
+          // onEnd -> advance to next sentence smoothly
+          if (isReadingRef.current) {
+            const nextSentenceIdx = sentenceIdx + 1;
+            if (nextSentenceIdx < page.sentences.length) {
+              setCurrentSentenceIndex(nextSentenceIdx);
+              speakSentence(pageIdx, nextSentenceIdx, currSpeed, currPreset, true, currSmartRhythm, currLang);
+            } else if (pageIdx + 1 < document.totalPages) {
+              // Check if Sleep Timer is waiting for end of current page
+              if (sleepTimerRef.current.isActive && sleepTimerRef.current.mode === 'end_of_page') {
+                setIsPlaying(false);
+                setIsPaused(true);
+                speechEngine.stop();
+                backgroundAudioService.pauseBackgroundPlayback();
+                setSleepTimer({
+                  isActive: false,
+                  mode: 'end_of_page',
+                  initialMinutes: 0,
+                  remainingSeconds: 0,
+                  targetTimestamp: null,
+                });
+                sounds.playSleepTimerEnd();
+                showToast('🌙 Temporizador: Lectura pausada al finalizar la página para ahorrar batería.');
+                return;
+              }
+              setCurrentPageIndex(pageIdx + 1);
+              setCurrentSentenceIndex(0);
+              sounds.playSkip(true);
+              speakSentence(pageIdx + 1, 0, currSpeed, currPreset, true, currSmartRhythm, currLang);
+            } else {
+              handleBookFinished();
+            }
+          }
+        },
+        onError: (err) => {
+          console.warn('Speech error:', err);
+          setIsPlaying(false);
+          backgroundAudioService.pauseBackgroundPlayback();
+          showToast('Aviso: Asegúrate de que el volumen de audio multimedia esté activo.');
+        },
+      });
+    },
+    [document, speed, voicePreset, showToast, handleBookFinished]
+  );
+
+  // Sleep Timer interval countdown and automatic pause trigger
+  useEffect(() => {
+    if (!sleepTimer.isActive || sleepTimer.mode !== 'duration' || !sleepTimer.targetTimestamp) {
+      return;
+    }
+
+    const intervalId = setInterval(() => {
+      const diffMs = sleepTimer.targetTimestamp! - Date.now();
+      const remaining = Math.max(0, Math.ceil(diffMs / 1000));
+
+      if (remaining <= 0) {
+        clearInterval(intervalId);
+        setSleepTimer({
+          isActive: false,
+          mode: 'duration',
+          initialMinutes: 0,
+          remainingSeconds: 0,
+          targetTimestamp: null,
+        });
+
+        // Pause audio playback smoothly to save battery
+        speechEngine.stop();
+        setIsPlaying(false);
+        setIsPaused(true);
+        backgroundAudioService.pauseBackgroundPlayback();
+        sounds.playSleepTimerEnd();
+        showToast('🌙 Temporizador de reposo: Lectura pausada para ahorrar batería.');
+      } else {
+        setSleepTimer((prev) => ({
+          ...prev,
+          remainingSeconds: remaining,
+        }));
+      }
+    }, 1000);
+
+    return () => clearInterval(intervalId);
+  }, [sleepTimer.isActive, sleepTimer.mode, sleepTimer.targetTimestamp, showToast]);
+
+  const handleStartSleepTimer = (minutes: number, mode: SleepTimerMode = 'duration') => {
+    if (mode === 'end_of_page') {
+      setSleepTimer({
+        isActive: true,
+        mode: 'end_of_page',
+        initialMinutes: 0,
+        remainingSeconds: 0,
+        targetTimestamp: null,
+      });
+      showToast('🌙 Temporizador: La lectura se pausará al terminar esta página');
+    } else {
+      const totalSec = minutes * 60;
+      setSleepTimer({
+        isActive: true,
+        mode: 'duration',
+        initialMinutes: minutes,
+        remainingSeconds: totalSec,
+        targetTimestamp: Date.now() + totalSec * 1000,
+      });
+      showToast(`🌙 Temporizador activado: ${minutes} minutos. Se pausará para ahorrar batería.`);
+    }
+  };
+
+  const handleCancelSleepTimer = () => {
+    setSleepTimer({
+      isActive: false,
+      mode: 'duration',
+      initialMinutes: 0,
+      remainingSeconds: 0,
+      targetTimestamp: null,
+    });
+    showToast('Temporizador de reposo desactivado');
+  };
+
+  const handleAddTimerMinutes = (minutes: number) => {
+    setSleepTimer((prev) => {
+      if (!prev.isActive || prev.mode !== 'duration') return prev;
+      const addMs = minutes * 60 * 1000;
+      const newTarget = (prev.targetTimestamp || Date.now()) + addMs;
+      const newRemaining = Math.max(0, Math.ceil((newTarget - Date.now()) / 1000));
+      showToast(`🌙 Se han añadido +${minutes} min al temporizador`);
+      return {
+        ...prev,
+        initialMinutes: prev.initialMinutes + minutes,
+        remainingSeconds: newRemaining,
+        targetTimestamp: newTarget,
+      };
+    });
+  };
+
+  // Intercept Android hardware/gesture Back navigation to stay in app and keep playing in background
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    if (!window.history.state || window.history.state.app !== 'lectorzews') {
+      window.history.replaceState({ app: 'lectorzews', view: currentView }, '');
+    }
+
+    const handlePopState = (e: PopStateEvent) => {
+      // If user was in reader view and pressed Back on their Android device:
+      if (currentView === 'reader') {
+        e.preventDefault?.();
+        handleReturnToMenu();
+        window.history.pushState({ app: 'lectorzews', view: 'library' }, '');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [currentView]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (currentView === 'reader') {
+      window.history.pushState({ app: 'lectorzews', view: 'reader' }, '');
+    }
+  }, [currentView]);
+
+  const handlePlayPause = () => {
+    backgroundAudioService.unlock();
+    if (!document) {
+      // Pick first sample book ("El Quijote") and start reading immediately!
+      handleSelectSampleBook('quijote', true);
+      return;
+    }
+
+    if (isPlaying) {
+      speechEngine.pause();
+      setIsPlaying(false);
+      setIsPaused(true);
+      backgroundAudioService.pauseBackgroundPlayback();
+    } else {
+      if (isPaused && speechEngine.hasNativePlaylistSupport()) {
+        speechEngine.resume();
+        setIsPlaying(true);
+        setIsPaused(false);
+        backgroundAudioService.startBackgroundPlayback();
+      } else {
+        speakSentence(currentPageIndex, currentSentenceIndex);
+      }
+    }
+  };
+
+  const handleSentenceClick = (sentenceIdx: number) => {
+    backgroundAudioService.unlock();
+    setCurrentSentenceIndex(sentenceIdx);
+    speakSentence(currentPageIndex, sentenceIdx);
+  };
+
+  const handlePrevSentence = () => {
+    backgroundAudioService.unlock();
+    if (!document) return;
+    if (isPlaying && speechEngine.hasNativePlaylistSupport()) {
+      speechEngine.prevSentence();
+      return;
+    }
+    if (currentSentenceIndex > 0) {
+      const nextIdx = currentSentenceIndex - 1;
+      setCurrentSentenceIndex(nextIdx);
+      if (isPlaying) {
+        speakSentence(currentPageIndex, nextIdx);
+      }
+    } else if (currentPageIndex > 0) {
+      const prevPage = currentPageIndex - 1;
+      const prevPageSentences = document.pages[prevPage].sentences;
+      const lastSentenceIdx = Math.max(0, prevPageSentences.length - 1);
+      setCurrentPageIndex(prevPage);
+      setCurrentSentenceIndex(lastSentenceIdx);
+      if (isPlaying) {
+        speakSentence(prevPage, lastSentenceIdx);
+      }
+    }
+  };
+
+  const handleNextSentence = () => {
+    backgroundAudioService.unlock();
+    if (!document) return;
+    if (isPlaying && speechEngine.hasNativePlaylistSupport()) {
+      speechEngine.nextSentence();
+      return;
+    }
+    const page = document.pages[currentPageIndex];
+    if (page && currentSentenceIndex + 1 < page.sentences.length) {
+      const nextIdx = currentSentenceIndex + 1;
+      setCurrentSentenceIndex(nextIdx);
+      if (isPlaying) {
+        speakSentence(currentPageIndex, nextIdx);
+      }
+    } else if (currentPageIndex + 1 < document.totalPages) {
+      const nextPage = currentPageIndex + 1;
+      setCurrentPageIndex(nextPage);
+      setCurrentSentenceIndex(0);
+      if (isPlaying) {
+        speakSentence(nextPage, 0);
+      }
+    } else {
+      // Reached the very end of the book
+      handleBookFinished();
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (currentPageIndex > 0) {
+      const prevPage = currentPageIndex - 1;
+      setCurrentPageIndex(prevPage);
+      setCurrentSentenceIndex(0);
+      if (isPlaying) {
+        speakSentence(prevPage, 0);
+      }
+    }
+  };
+
+  const handleNextPage = () => {
+    if (document && currentPageIndex + 1 < document.totalPages) {
+      const nextPage = currentPageIndex + 1;
+      setCurrentPageIndex(nextPage);
+      setCurrentSentenceIndex(0);
+      if (isPlaying) {
+        speakSentence(nextPage, 0);
+      }
+    } else if (document && currentPageIndex + 1 >= document.totalPages) {
+      handleBookFinished();
+    }
+  };
+
+  const handleRestartPage = () => {
+    setCurrentSentenceIndex(0);
+    if (isPlaying) {
+      speakSentence(currentPageIndex, 0);
+    }
+  };
+
+  // Sync background audio refs with state for lock-screen MediaSession actions
+  const docRef = useRef(document);
+  docRef.current = document;
+  const currentPageRef = useRef(currentPageIndex);
+  currentPageRef.current = currentPageIndex;
+  const currentSentenceRef = useRef(currentSentenceIndex);
+  currentSentenceRef.current = currentSentenceIndex;
+  const handlePrevSentenceRef = useRef(handlePrevSentence);
+  handlePrevSentenceRef.current = handlePrevSentence;
+  const handleNextSentenceRef = useRef(handleNextSentence);
+  handleNextSentenceRef.current = handleNextSentence;
+  const handlePrevPageRef = useRef(handlePrevPage);
+  handlePrevPageRef.current = handlePrevPage;
+  const handleNextPageRef = useRef(handleNextPage);
+  handleNextPageRef.current = handleNextPage;
+  const speakSentenceRef = useRef(speakSentence);
+  speakSentenceRef.current = speakSentence;
+
+  // Register native Android / desktop MediaSession event handlers
+  useEffect(() => {
+    backgroundAudioService.registerCallbacks({
+      onPlay: () => {
+        if (docRef.current) {
+          speakSentenceRef.current(currentPageRef.current, currentSentenceRef.current);
+        }
+      },
+      onPause: () => {
+        speechEngine.stop();
+        setIsPlaying(false);
+        setIsPaused(true);
+        backgroundAudioService.pauseBackgroundPlayback();
+      },
+      onPrevSentence: () => {
+        handlePrevSentenceRef.current();
+      },
+      onNextSentence: () => {
+        handleNextSentenceRef.current();
+      },
+      onPrevPage: () => {
+        handlePrevPageRef.current();
+      },
+      onNextPage: () => {
+        handleNextPageRef.current();
+      },
+      onStop: () => {
+        speechEngine.stop();
+        setIsPlaying(false);
+        setIsPaused(false);
+        backgroundAudioService.stopBackgroundPlayback();
+      },
+    });
+  }, []);
+
+  // Listen for native Android background sentence changes and sync on return from background
+  useEffect(() => {
+    const unsubSentence = speechEngine.onSentenceChange((pIdx, sIdx) => {
+      setCurrentPageIndex(pIdx);
+      setCurrentSentenceIndex(sIdx);
+      setIsPlaying(true);
+      setIsPaused(false);
+      if (docRef.current) {
+        const sentenceText = docRef.current.pages[pIdx]?.sentences[sIdx] || '';
+        backgroundAudioService.updateMetadata({
+          title: docRef.current.title,
+          page: pIdx + 1,
+          totalPages: docRef.current.totalPages,
+          sentenceText,
+        });
+        recordBookHistory(docRef.current, pIdx, sIdx);
+      }
+    });
+
+    const unsubFinished = speechEngine.onQueueFinished(() => {
+      handleBookFinishedRef.current();
+    });
+
+    const handleFocusSync = () => {
+      const indices = speechEngine.getNativeCurrentIndices();
+      if (indices) {
+        setCurrentPageIndex(indices.pageIndex);
+        setCurrentSentenceIndex(indices.sentenceIndex);
+      }
+    };
+
+    window.addEventListener('focus', handleFocusSync);
+    if (typeof document !== 'undefined') {
+      window.document.addEventListener('visibilitychange', handleFocusSync);
+    }
+
+    return () => {
+      unsubSentence();
+      unsubFinished();
+      window.removeEventListener('focus', handleFocusSync);
+      if (typeof document !== 'undefined') {
+        window.document.removeEventListener('visibilitychange', handleFocusSync);
+      }
+    };
+  }, [recordBookHistory, showToast]);
+
+  // Bookmark Operations
+  const handleAddCurrentBookmark = (customNote?: string) => {
+    if (!document) return;
+    const page = document.pages[currentPageIndex];
+    const snippet =
+      page && page.sentences[currentSentenceIndex]
+        ? page.sentences[currentSentenceIndex]
+        : `Página ${currentPageIndex + 1} de ${document.title}`;
+
+    const newBm = saveBookmark({
+      docTitle: document.title,
+      docFileName: document.fileName,
+      pageNumber: currentPageIndex + 1,
+      sentenceIndex: currentSentenceIndex,
+      snippet,
+      note: customNote,
+    });
+
+    setBookmarks(getStoredBookmarks());
+    sounds.playPlay();
+    showToast(`Marcador guardado en Página ${currentPageIndex + 1}`);
+  };
+
+  const handleDeleteBookmark = (id: string) => {
+    const updated = removeBookmark(id);
+    setBookmarks(updated);
+    showToast('Marcador eliminado');
+  };
+
+  const handleUpdateBookmarkNote = (id: string, note: string) => {
+    const updated = updateBookmarkNote(id, note);
+    setBookmarks(updated);
+    showToast('Nota actualizada');
+  };
+
+  const handleJumpToBookmark = (bm: Bookmark) => {
+    // Check if current doc matches bookmark
+    if (document && (document.fileName === bm.docFileName || document.title === bm.docTitle)) {
+      const targetPage = Math.min(document.totalPages - 1, Math.max(0, bm.pageNumber - 1));
+      const targetSentence = Math.max(0, bm.sentenceIndex || 0);
+      setCurrentPageIndex(targetPage);
+      setCurrentSentenceIndex(targetSentence);
+      speakSentence(targetPage, targetSentence);
+      showToast(`Saltando a Pág. ${bm.pageNumber}`);
+    } else {
+      // Find among sample books or inform user
+      const sample = SAMPLE_BOOKS.find(
+        (b) => b.doc.fileName === bm.docFileName || b.title === bm.docTitle
+      );
+      if (sample) {
+        setDocument(sample.doc);
+        const targetPage = Math.min(sample.doc.totalPages - 1, Math.max(0, bm.pageNumber - 1));
+        const targetSentence = Math.max(0, bm.sentenceIndex || 0);
+        setCurrentPageIndex(targetPage);
+        setCurrentSentenceIndex(targetSentence);
+        speakSentence(targetPage, targetSentence);
+        showToast(`Cargando "${sample.title}" en Pág. ${bm.pageNumber}`);
+      } else {
+        showToast(
+          `Abre primero el archivo "${bm.docFileName}" para saltar a este marcador.`
+        );
+      }
+    }
+  };
+
+  // Favorites Operations
+  const handleToggleFavoriteDoc = (doc: PDFDocumentData) => {
+    const isNowFav = toggleFavorite({
+      id: doc.fileName,
+      fileName: doc.fileName,
+      title: doc.title,
+      totalPages: doc.totalPages,
+    });
+    setFavorites(getStoredFavorites());
+    sounds.playTick();
+    showToast(
+      isNowFav
+        ? `"${doc.title}" añadido a Favoritos`
+        : `"${doc.title}" eliminado de Favoritos`
+    );
+  };
+
+  // Interstitial Ad Trigger: Activates strictly when user opens a PDF for the 3rd time
+  const triggerPdfOpenWithAdCheck = (bookTitle: string, openCallback: () => void) => {
+    const newCount = incrementPdfOpenCount();
+    setPdfOpenCount(newCount);
+
+    // Activates on the 3rd PDF opening
+    if (newCount === 3 && !hasSeenInterstitial()) {
+      setInterstitialBookTitle(bookTitle);
+      setPendingOpenAction(() => openCallback);
+      setIsInterstitialTestPreview(false);
+      setIsInterstitialOpen(true);
+    } else {
+      openCallback();
+    }
+  };
+
+  const handleCloseInterstitial = () => {
+    markInterstitialAsSeen();
+    setIsInterstitialOpen(false);
+    if (pendingOpenAction) {
+      const action = pendingOpenAction;
+      setPendingOpenAction(null);
+      action();
+    }
+  };
+
+  const handlePreviewInterstitial = () => {
+    setInterstitialBookTitle('Vista de Prueba AdMob Intersticial');
+    setPendingOpenAction(null);
+    setIsInterstitialTestPreview(true);
+    setIsInterstitialOpen(true);
+  };
+
+  const handleSelectFavorite = (fav: FavoriteItem) => {
+    const sample = SAMPLE_BOOKS.find((b) => b.doc.fileName === fav.fileName || b.title === fav.title);
+    if (sample) {
+      triggerPdfOpenWithAdCheck(sample.title, () => {
+        setDocument(sample.doc);
+        setCurrentPageIndex(0);
+        setCurrentSentenceIndex(0);
+        sounds.playDocumentLoaded();
+        showToast(`Cargado favorito: ${sample.title}`);
+      });
+    } else if (document && document.fileName === fav.fileName) {
+      showToast(`Ya estás leyendo este documento.`);
+    } else {
+      showToast(`Para abrir este favorito, carga su archivo ${fav.fileName}.`);
+    }
+  };
+
+  // Load Sample Book
+  const handleSelectSampleBook = (sampleId: string, autoPlay: boolean = false) => {
+    const sample = SAMPLE_BOOKS.find((b) => b.id === sampleId);
+    if (sample) {
+      triggerPdfOpenWithAdCheck(sample.title, () => {
+        speechEngine.stop();
+        setIsPlaying(false);
+        setDocument(sample.doc);
+        setCurrentView('reader');
+        setCurrentPageIndex(0);
+        setCurrentSentenceIndex(0);
+        const bookLang = sample.language || DEFAULT_LANGUAGE;
+        setLanguage(bookLang);
+        languageRef.current = bookLang;
+        updateSettings({ language: bookLang });
+        sounds.playDocumentLoaded();
+        recordBookHistory(sample.doc, 0, 0);
+
+        const langInfo = SUPPORTED_LANGUAGES.find(
+          (l) => l.code.toLowerCase() === bookLang.toLowerCase()
+        );
+        const langLabel = langInfo ? ` • ${langInfo.flag} ${langInfo.name}` : '';
+        showToast(`Cargado "${sample.title}"${langLabel}`);
+
+        if (autoPlay) {
+          setTimeout(() => {
+            speakSentence(0, 0, speed, voicePreset, false, smartRhythm, bookLang);
+          }, 100);
+        }
+      });
+    }
+  };
+
+  // Handle PDF/TXT file upload with universal compatibility
+  const handleFileUpload = async (file: File) => {
+    const bookTitle = file.name.replace(/\.[^/.]+$/, '').replace(/[_\\-]/g, ' ');
+    triggerPdfOpenWithAdCheck(bookTitle, async () => {
+      setIsLoadingFile(true);
+      speechEngine.stop();
+      setIsPlaying(false);
+
+      try {
+        let parsedDoc: PDFDocumentData;
+        const arrayBuffer = await file.arrayBuffer();
+
+        // Check file extension, mime type or %PDF- byte magic signature
+        const isPdfName = file.name.toLowerCase().endsWith('.pdf');
+        const isPdfType = file.type === 'application/pdf' || file.type.toLowerCase().includes('pdf');
+        const firstBytes = new Uint8Array(arrayBuffer.slice(0, 5));
+        const isPdfMagic = String.fromCharCode(...firstBytes) === '%PDF-';
+
+        if (isPdfName || isPdfType || isPdfMagic) {
+          parsedDoc = await parsePdfArrayBuffer(arrayBuffer, file.name);
+        } else {
+          // Plain text or other document text format
+          let text = '';
+          try {
+            text = await file.text();
+          } catch {
+            const dec = new TextDecoder('utf-8');
+            text = dec.decode(arrayBuffer);
+          }
+          parsedDoc = createDocumentFromText(bookTitle, text);
+        }
+
+        if (!parsedDoc || parsedDoc.pages.length === 0) {
+          parsedDoc = createDocumentFromText(bookTitle, `Documento ${bookTitle} cargado.`);
+        }
+
+        setDocument(parsedDoc);
+        setCurrentView('reader');
+        setCurrentPageIndex(0);
+        setCurrentSentenceIndex(0);
+
+        // Auto-detect language from book sample text with fallback to Spanish default
+        const sampleText =
+          parsedDoc.pages[0]?.sentences.slice(0, 8).join(' ') ||
+          parsedDoc.pages[0]?.text ||
+          '';
+        const detected = detectLanguage(sampleText);
+        setLanguage(detected);
+        languageRef.current = detected;
+        updateSettings({ language: detected });
+
+        sounds.playDocumentLoaded();
+        recordBookHistory(parsedDoc, 0, 0);
+
+        const langInfo = SUPPORTED_LANGUAGES.find(
+          (l) => l.code.toLowerCase() === detected.toLowerCase()
+        );
+        const langLabel = langInfo ? ` • Idioma: ${langInfo.flag} ${langInfo.name}` : '';
+        showToast(`"${parsedDoc.title}" cargado (${parsedDoc.totalPages} págs.)${langLabel}`);
+      } catch (err) {
+        console.warn('PDF primary parser error, using emergency recovery:', err);
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          const fallbackDoc = await parsePdfArrayBuffer(arrayBuffer, file.name);
+          setDocument(fallbackDoc);
+          setCurrentView('reader');
+          setCurrentPageIndex(0);
+          setCurrentSentenceIndex(0);
+          sounds.playDocumentLoaded();
+          recordBookHistory(fallbackDoc, 0, 0);
+          showToast(`"${fallbackDoc.title}" cargado (${fallbackDoc.totalPages} págs.)`);
+        } catch (fatalErr) {
+          console.warn('Emergency text document recovery:', fatalErr);
+          const safeDoc = createDocumentFromText(
+            bookTitle,
+            `Documento "${file.name}" cargado. Puedes presionar Reproducir para comenzar la lectura.`
+          );
+          setDocument(safeDoc);
+          setCurrentView('reader');
+          setCurrentPageIndex(0);
+          setCurrentSentenceIndex(0);
+          sounds.playDocumentLoaded();
+          showToast(`"${safeDoc.title}" listo para lectura`);
+        }
+      } finally {
+        setIsLoadingFile(false);
+      }
+    });
+  };
+
+  // Return to Menu / Library View (Audio stays playing in background with Mini Player)
+  const handleReturnToMenu = () => {
+    setIsImmersiveMode(false);
+    if (document) {
+      recordBookHistory(document, currentPageIndex, currentSentenceIndex);
+    }
+    setCurrentView('library');
+    sounds.playClick(450);
+    showToast('Has vuelto a la biblioteca • Audio activo en segundo plano');
+  };
+
+  // Close Document & Stop Playback completely
+  const handleCloseDocument = () => {
+    speechEngine.stop();
+    setIsPlaying(false);
+    setIsPaused(false);
+    setIsImmersiveMode(false);
+    backgroundAudioService.stopBackgroundPlayback();
+    if (document) {
+      recordBookHistory(document, currentPageIndex, currentSentenceIndex);
+    }
+    setDocument(null);
+    setCurrentView('library');
+    sounds.playClick(450);
+    showToast('Lectura finalizada');
+  };
+
+  // Resume Book from Playback History
+  const handleResumeBookFromHistory = (item: BookHistoryItem) => {
+    // If currently active doc matches
+    if (document && (document.fileName === item.fileName || document.title === item.title)) {
+      setCurrentView('reader');
+      const targetPage = Math.min(document.totalPages - 1, Math.max(0, item.lastPageIndex));
+      const targetSentence = Math.max(0, item.lastSentenceIndex || 0);
+      setCurrentPageIndex(targetPage);
+      setCurrentSentenceIndex(targetSentence);
+      speakSentence(targetPage, targetSentence);
+      showToast(`Reanudando "${document.title}" (Pág. ${targetPage + 1})`);
+      setIsHistoryOpen(false);
+      return;
+    }
+
+    triggerPdfOpenWithAdCheck(item.title, () => {
+      // Try finding in sample books
+      const sample = SAMPLE_BOOKS.find(
+        (b) =>
+          b.doc.fileName === item.fileName ||
+          b.title === item.title ||
+          b.id === item.sampleId ||
+          b.id === item.id
+      );
+      if (sample) {
+        setDocument(sample.doc);
+        setCurrentView('reader');
+        const targetPage = Math.min(sample.doc.totalPages - 1, Math.max(0, item.lastPageIndex));
+        const targetSentence = Math.max(0, item.lastSentenceIndex || 0);
+        setCurrentPageIndex(targetPage);
+        setCurrentSentenceIndex(targetSentence);
+        setLanguage(sample.language);
+        updateSettings({ language: sample.language });
+        speakSentence(targetPage, targetSentence);
+        sounds.playDocumentLoaded();
+        showToast(`Reanudando "${sample.title}" en Pág. ${targetPage + 1}`);
+        setIsHistoryOpen(false);
+      } else {
+        showToast(`Para continuar con "${item.title}", carga su archivo "${item.fileName}".`);
+      }
+    });
+  };
+
+  // Remove single history item
+  const handleRemoveHistoryItem = (id: string) => {
+    const updated = removeHistoryItem(id);
+    setHistory(updated);
+    sounds.playTick();
+    showToast('Elemento eliminado del historial');
+  };
+
+  // Clear all history
+  const handleClearHistory = () => {
+    clearHistory();
+    setHistory([]);
+    sounds.playTick();
+    showToast('Historial vaciado');
+  };
+
+  // Drag and Drop handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      sounds.playDocumentLoaded();
+      handleFileUpload(file);
+    }
+  };
+
+  // Bookmarked sentences set for fast page lookups
+  const bookmarkedSentencesOnPage = React.useMemo(() => {
+    const set = new Set<number>();
+    if (!document) return set;
+    const pageNum = currentPageIndex + 1;
+    bookmarks.forEach((bm) => {
+      if (
+        (bm.docFileName === document.fileName || bm.docTitle === document.title) &&
+        bm.pageNumber === pageNum
+      ) {
+        set.add(bm.sentenceIndex);
+      }
+    });
+    return set;
+  }, [bookmarks, document, currentPageIndex]);
+
+  const isCurrentSentenceBookmarked = bookmarkedSentencesOnPage.has(currentSentenceIndex);
+
+  const activeSentenceText =
+    document && document.pages[currentPageIndex]?.sentences[currentSentenceIndex]
+      ? document.pages[currentPageIndex].sentences[currentSentenceIndex]
+      : '';
+
+  return (
+    <div
+      id="app-root"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      className={`min-h-screen w-full relative flex flex-col font-sans-clean select-none transition-colors duration-300 ${
+        effectiveIsDark ? 'text-neutral-100' : 'text-neutral-900'
+      }`}
+    >
+      {/* Nostalgic Giant Library with Reading Cloth Puppet Background */}
+      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+        <img
+          src={libraryPuppetBg}
+          alt="Biblioteca gigante con un micrófono en medio y un muñeco de tela leyendo un libro con ese micrófono"
+          referrerPolicy="no-referrer"
+          className={`w-full h-full object-cover object-center transform transition-all duration-700 ${
+            effectiveIsDark ? 'brightness-[0.72] contrast-[1.04]' : 'brightness-[0.88] contrast-[1.02]'
+          }`}
+          loading="eager"
+        />
+        {/* Subtle warm ambient overlay for crisp legibility and battery efficiency */}
+        <div
+          className={`absolute inset-0 transition-colors duration-500 ${
+            effectiveIsDark
+              ? 'bg-neutral-950/40 mix-blend-multiply'
+              : 'bg-amber-950/15 mix-blend-soft-light'
+          }`}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-neutral-950/85 via-neutral-950/15 to-neutral-950/70" />
+      </div>
+
+      {/* Main Header - Hidden in Immersive Mode */}
+      {!isImmersiveMode && (
+        <Header
+          appName="LectorZews"
+          theme={theme}
+          onCycleTheme={handleCycleTheme}
+          soundsEnabled={soundsEnabled}
+          onToggleSounds={handleToggleSounds}
+          voicePreset={voicePreset}
+          selectedVoiceURI={selectedVoiceURI}
+          ambientTrack={ambientTrack}
+          onOpenVoicesModal={() => setIsVoicesOpen(true)}
+          onFileUpload={handleFileUpload}
+          isLoadingFile={isLoadingFile}
+          hasDocument={!!document && currentView === 'reader'}
+          sleepTimerState={sleepTimer}
+          onOpenSleepTimer={() => setIsSleepTimerOpen(true)}
+          onReturnToMenu={handleReturnToMenu}
+          onOpenHistory={() => setIsHistoryOpen(true)}
+          historyCount={history.length}
+          isImmersiveMode={isImmersiveMode}
+          onToggleImmersiveMode={() => handleToggleImmersive()}
+          onOpenBackgroundAudio={() => setIsBackgroundModalOpen(true)}
+          isPlaying={isPlaying}
+          onOpenNotifications={() => setIsNotificationModalOpen(true)}
+          isNotificationActive={readingReminderService.isEnabled() && readingReminderService.getPermissionStatus() === 'granted'}
+        />
+      )}
+
+      {/* Floating Immersive Mode Controls (Exit button & playback indicator) */}
+      {isImmersiveMode && (
+        <div
+          id="immersive-floating-controls"
+          className="fixed top-4 right-4 sm:top-5 sm:right-6 z-50 flex items-center gap-2 animate-fadeIn"
+        >
+          {/* Quick Play/Pause button in immersive mode */}
+          {document && (
+            <button
+              id="btn-immersive-floating-play"
+              onClick={() => {
+                if (isPlaying) {
+                  sounds.playPause();
+                } else {
+                  sounds.playPlay();
+                }
+                handlePlayPause();
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-neutral-900/80 hover:bg-neutral-900 text-amber-300 border border-amber-500/30 backdrop-blur-md shadow-xl text-xs font-medium transition active:scale-95 opacity-80 hover:opacity-100"
+              title={isPlaying ? 'Pausar audio' : 'Continuar escuchando en segundo plano'}
+            >
+              {isPlaying ? (
+                <Pause className="w-3.5 h-3.5 fill-amber-300" />
+              ) : (
+                <Play className="w-3.5 h-3.5 fill-amber-300" />
+              )}
+              <span className="hidden sm:inline font-mono">
+                {isPlaying ? 'Pausar' : 'Escuchar'} (Pág. {currentPageIndex + 1}/{document.totalPages})
+              </span>
+            </button>
+          )}
+
+          {/* Button to Exit Immersive Mode */}
+          <button
+            id="btn-exit-immersive-floating"
+            onClick={() => handleToggleImmersive(false)}
+            className="group flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-neutral-900/90 hover:bg-neutral-900 text-neutral-200 hover:text-amber-300 border border-amber-500/40 backdrop-blur-md shadow-2xl text-xs font-semibold transition-all duration-200 active:scale-95 opacity-80 hover:opacity-100"
+            title="Salir del Modo Inmersivo (Esc)"
+          >
+            <Minimize2 className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
+            <span>Salir de Modo Inmersivo</span>
+            <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] rounded bg-neutral-800 border border-neutral-700 text-neutral-400 font-mono">
+              Esc
+            </kbd>
+          </button>
+        </div>
+      )}
+
+      {/* Drag overlay indicator */}
+      {isDragging && (
+        <div
+          id="global-drag-overlay"
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-amber-950/85 backdrop-blur-md border-4 border-dashed border-amber-400 p-8 text-amber-200 pointer-events-none animate-pulse"
+        >
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/20 flex items-center justify-center text-amber-300 mb-4">
+            <span className="text-3xl">📄</span>
+          </div>
+          <h3 className="text-2xl font-bold font-title">Suelta tu archivo PDF aquí</h3>
+          <p className="text-sm text-amber-300/80 mt-1">LectorZews lo preparará al instante</p>
+        </div>
+      )}
+
+      {/* Main Document Reader Content */}
+      <main className="flex-1 relative z-10 overflow-y-auto">
+        <DocumentReader
+          document={document}
+          currentView={currentView}
+          currentPageIndex={currentPageIndex}
+          currentSentenceIndex={currentSentenceIndex}
+          isPlaying={isPlaying}
+          onSentenceClick={handleSentenceClick}
+          onSelectSampleBook={handleSelectSampleBook}
+          onUploadClick={() => {
+            const input = window.document.getElementById('hidden-file-input') as HTMLInputElement;
+            if (input) input.click();
+          }}
+          isDragging={isDragging}
+          fontSize="md"
+          onReturnToMenu={handleReturnToMenu}
+          history={history}
+          onResumeBook={handleResumeBookFromHistory}
+          onOpenHistory={() => setIsHistoryOpen(true)}
+          isImmersiveMode={isImmersiveMode}
+          onToggleImmersiveMode={() => handleToggleImmersive()}
+        />
+      </main>
+
+      {/* Google AdMob Banner */}
+      {!isImmersiveMode && (
+        <div
+          id="admob-banner-dock"
+          className={`w-full z-20 pointer-events-none transition-all ${
+            document
+              ? currentView === 'library'
+                ? 'fixed bottom-[68px] sm:bottom-[64px] left-0 right-0'
+                : 'fixed bottom-[78px] sm:bottom-[76px] left-0 right-0'
+              : 'relative mt-4 mb-6'
+          }`}
+        >
+          <AdMobBanner
+            hasAudioPlayer={!!document}
+            isImmersiveMode={isImmersiveMode}
+            pdfOpenCount={pdfOpenCount}
+            onOpenInterstitialPreview={handlePreviewInterstitial}
+          />
+        </div>
+      )}
+
+      {/* Mini Audio Player Dock when browsing library while audio plays in background */}
+      {!isImmersiveMode && document && currentView === 'library' && (
+        <MiniAudioPlayer
+          title={document.title}
+          currentPage={currentPageIndex + 1}
+          totalPages={document.totalPages}
+          currentSentence={currentSentenceIndex}
+          totalSentencesInPage={document.pages[currentPageIndex]?.sentences.length || 0}
+          activeSentenceText={activeSentenceText}
+          isPlaying={isPlaying}
+          onPlayPause={handlePlayPause}
+          onPrevSentence={handlePrevSentence}
+          onNextSentence={handleNextSentence}
+          onExpand={() => {
+            sounds.playClick(600);
+            setCurrentView('reader');
+          }}
+          onClose={handleCloseDocument}
+        />
+      )}
+
+      {/* Minimalist Rounded Audio Player Dock - in Reader View */}
+      {!isImmersiveMode && document && currentView === 'reader' && (
+        <AudioPlayerBar
+          isPlaying={isPlaying}
+          isPaused={isPaused}
+          onPlayPause={handlePlayPause}
+          onPrevSentence={handlePrevSentence}
+          onNextSentence={handleNextSentence}
+          onPrevPage={handlePrevPage}
+          onNextPage={handleNextPage}
+          onRestartPage={handleRestartPage}
+          currentPage={currentPageIndex + 1}
+          totalPages={document.totalPages}
+          currentSentence={currentSentenceIndex}
+          totalSentencesInPage={document.pages[currentPageIndex]?.sentences.length || 0}
+          currentSpeed={speed}
+          onSpeedChange={handleSpeedChange}
+          activeSentenceText={activeSentenceText}
+          sleepTimerState={sleepTimer}
+          onOpenSleepTimer={() => setIsSleepTimerOpen(true)}
+          smartRhythm={smartRhythm}
+          onToggleSmartRhythm={handleToggleSmartRhythm}
+          onReturnToMenu={handleReturnToMenu}
+          onOpenHistory={() => setIsHistoryOpen(true)}
+          isImmersiveMode={isImmersiveMode}
+          onToggleImmersiveMode={() => handleToggleImmersive()}
+          onOpenBackgroundAudio={() => setIsBackgroundModalOpen(true)}
+          onOpenVoicesModal={() => setIsVoicesOpen(true)}
+          ambientTrack={ambientTrack}
+        />
+      )}
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div
+          id="toast-notification"
+          className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-neutral-900/95 border border-amber-500/40 text-amber-200 text-xs font-medium shadow-2xl backdrop-blur-md flex items-center gap-2 animate-fadeIn"
+        >
+          <span className="w-2 h-2 rounded-full bg-amber-400" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Voices & Ambient Instrumentals Modal */}
+      <VoiceSelectorModal
+        isOpen={isVoicesOpen}
+        onClose={() => setIsVoicesOpen(false)}
+        currentVoicePreset={voicePreset}
+        onSelectVoicePreset={handleSelectVoicePreset}
+        selectedVoiceURI={selectedVoiceURI}
+        onSelectVoiceURI={handleSelectSpecificVoice}
+        currentLanguage={language}
+        onSelectLanguage={handleSelectLanguage}
+        speed={speed}
+        onSpeedChange={handleSpeedChange}
+        smartRhythm={smartRhythm}
+        onToggleSmartRhythm={handleToggleSmartRhythm}
+        ambientTrack={ambientTrack}
+        onSelectAmbientTrack={handleSelectAmbientTrack}
+        ambientVolume={ambientVolume}
+        onAmbientVolumeChange={handleAmbientVolumeChange}
+      />
+
+      {/* Sleep Timer Dedicated Modal */}
+      <SleepTimerModal
+        isOpen={isSleepTimerOpen}
+        onClose={() => setIsSleepTimerOpen(false)}
+        timerState={sleepTimer}
+        onStartTimer={handleStartSleepTimer}
+        onCancelTimer={handleCancelSleepTimer}
+        onAddMinutes={handleAddTimerMinutes}
+        isDarkMode={effectiveIsDark}
+        onEnableDarkMode={() => {
+          setTheme('dark');
+          updateSettings({ theme: 'dark' });
+          showToast('Modo oscuro activado para mayor confort visual y ahorro de batería');
+        }}
+      />
+
+      {/* Reading Playback History Modal (Reloj) */}
+      <HistoryModal
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        history={history}
+        onResumeBook={handleResumeBookFromHistory}
+        onRemoveHistoryItem={handleRemoveHistoryItem}
+        onClearHistory={handleClearHistory}
+      />
+
+      {/* Background Audio Modal */}
+      <BackgroundAudioModal
+        isOpen={isBackgroundModalOpen}
+        onClose={() => setIsBackgroundModalOpen(false)}
+        isPlaying={isPlaying}
+        onTogglePlay={handlePlayPause}
+        bookTitle={document?.title}
+        ambientTrack={ambientTrack}
+        onOpenVoicesModal={() => setIsVoicesOpen(true)}
+      />
+
+      {/* Google AdMob Full-Screen Interstitial Ad Modal (Active on 3rd PDF opening) */}
+      <AdMobInterstitialModal
+        isOpen={isInterstitialOpen}
+        onClose={handleCloseInterstitial}
+        pdfTitle={interstitialBookTitle}
+        isTestPreview={isInterstitialTestPreview}
+      />
+
+      {/* 8-Hour Reading Reminders Notification Modal */}
+      <NotificationModal
+        isOpen={isNotificationModalOpen}
+        onClose={() => setIsNotificationModalOpen(false)}
+        lastReadBook={lastReadPosition}
+        onToast={showToast}
+      />
+    </div>
+  );
+}
