@@ -90,7 +90,7 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "revision": "8e1c212e3cdc59f66b06620fb0969a01"
   }, {
     "url": "index.html",
-    "revision": "7891b778f146dafccfb398a0fd407569"
+    "revision": "2f9d05f8ff18e4b4a10de9b1c76a10a9"
   }, {
     "url": "icon.svg",
     "revision": "3245a6a1f608d48811751ab0231f6979"
@@ -101,11 +101,14 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "url": "apple-touch-icon.png",
     "revision": "7420fa67dc45205e9d69f371a536e60e"
   }, {
-    "url": "assets/index-D4JpahKa.css",
+    "url": "assets/index-D-wuTyVY.js",
     "revision": null
   }, {
-    "url": "assets/index-C07WRs4o.js",
+    "url": "assets/index-B6z7bqPb.css",
     "revision": null
+  }, {
+    "url": "ads.txt",
+    "revision": "2bf629b74c07705eb4d344506932425a"
   }, {
     "url": "app-ads.txt",
     "revision": "2bf629b74c07705eb4d344506932425a"
@@ -136,7 +139,7 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html"), {
-    denylist: [/^\/\.well-known/]
+    denylist: [/^\/\.well-known/, /^\/app-ads\.txt/, /^\/ads\.txt/]
   }));
   workbox.registerRoute(/^https:\/\/fonts\.googleapis\.com\/.*/i, new workbox.CacheFirst({
     "cacheName": "google-fonts-cache",
