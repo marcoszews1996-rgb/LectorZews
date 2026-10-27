@@ -12,7 +12,6 @@ import {
   Clock,
   Play,
   Maximize2,
-  Download,
 } from 'lucide-react';
 
 interface DocumentReaderProps {
@@ -130,38 +129,6 @@ export const DocumentReader: React.FC<DocumentReaderProps> = ({
             Toca aquí para seleccionar un archivo PDF de tu celular
           </p>
         </div>
-
-        {/* Android APK Direct Download Card (Pon el APK afuera para probar) */}
-        <a
-          id="btn-download-apk-card"
-          href="/LectorZews.apk"
-          download="LectorZews.apk"
-          onClick={() => sounds.playDocumentLoaded()}
-          className="w-full max-w-md mt-3.5 p-4 rounded-2xl bg-gradient-to-r from-emerald-500/20 via-neutral-900/80 to-neutral-950/80 border border-emerald-500/30 hover:border-emerald-500/50 active:scale-[0.98] transition-all cursor-pointer shadow-lg backdrop-blur-xl flex items-center justify-between gap-3 group"
-          title="Descargar el archivo APK para probar la app nativa en Android"
-        >
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-neutral-950 flex items-center justify-center shrink-0 shadow-md group-hover:scale-105 transition-transform">
-              <Download className="w-5 h-5 stroke-[2.5]" />
-            </div>
-            <div className="text-left min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-xs sm:text-sm font-bold text-neutral-100 group-hover:text-emerald-300 transition-colors truncate">
-                  Descargar APK Android
-                </span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-emerald-500/25 text-emerald-300 font-mono font-bold shrink-0">
-                  .apk
-                </span>
-              </div>
-              <p className="text-[11px] text-neutral-400 truncate">
-                Prueba e instala LectorZews directamente en tu teléfono
-              </p>
-            </div>
-          </div>
-          <div className="px-3 py-1.5 rounded-xl bg-emerald-500 group-hover:bg-emerald-400 text-neutral-950 font-bold text-xs shrink-0 shadow-sm transition">
-            Instalar
-          </div>
-        </a>
 
         {/* Recently Played Books / Historial Móvil */}
         {history.length > 0 && (

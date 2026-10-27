@@ -13,7 +13,6 @@ import {
   ArrowLeft,
   Music,
   Bell,
-  Download,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -149,19 +148,6 @@ export const Header: React.FC<HeaderProps> = ({
           <Upload className="w-3.5 h-3.5 stroke-[2.5]" />
           <span>{isLoadingFile ? 'Cargando...' : 'Abrir PDF'}</span>
         </button>
-
-        {/* Direct APK Download Button (Pon el APK afuera para probar) */}
-        <a
-          id="btn-header-download-apk"
-          href="/LectorZews.apk"
-          download="LectorZews.apk"
-          onClick={() => sounds.playDocumentLoaded()}
-          className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/40 text-emerald-300 text-xs font-bold transition active:scale-95 shadow-sm"
-          title="Descargar APK nativo para probar e instalar en Android"
-        >
-          <Download className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5]" />
-          <span className="hidden sm:inline">APK</span>
-        </a>
 
         {/* Voices Menu Trigger */}
         <button
